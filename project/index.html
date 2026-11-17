@@ -2069,7 +2069,7 @@
 
     <script type="module">
       import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-      import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, signOut, reload } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      import { getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, signOut, reload } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
       const config = {
         apiKey:"AIzaSyD9IttO0llpQ2TYjDAppTlAPLmQq7btwgQ",
         authDomain:"lara-s-site.firebaseapp.com", projectId:"lara-s-site",
@@ -2078,6 +2078,8 @@
         appId:"1:885789879803:web:039d0bee8db543bc3f2f5e"
       };
       const auth = getAuth(getApps().length ? getApp() : initializeApp(config));
+      // Keep this device signed in across reloads and browser restarts.
+      await setPersistence(auth, browserLocalPersistence);
       const allowed = Object.freeze({
         "yzaid6800@gmail.com":"Yassin",
         "laraesam2007@gmail.com":"Lara"
