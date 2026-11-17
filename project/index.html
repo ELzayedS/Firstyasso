@@ -1733,7 +1733,16 @@
                 <button class="game-back" onclick="showHub()">← All Games</button>
             </div>
             <div class="sync-badge"><span class="sync-dot"></span> Synced live with your partner</div>
-            <div class="question-count" id="qCount">Question 1</div>
+            <div class="field-group" style="max-width:360px;margin:18px auto;">
+                <label for="questionCategory">Question mood</label>
+                <select id="questionCategory" class="btn" style="width:100%;text-align:left;">
+                    <option value="romantic">💗 Romantic</option>
+                    <option value="deep">🌙 Deep</option>
+                    <option value="fun">😂 Fun</option>
+                    <option value="future">✨ Future</option>
+                </select>
+            </div>
+            <div class="question-count" id="qCount">Choose a mood, then start</div>
             <div class="question-card">
                 <p class="question-text" id="questionText">Press "Next Question" to start.</p>
             </div>
@@ -2914,8 +2923,10 @@
             if (unreadCount > 0) {
                 notifBadge.textContent = unreadCount > 9 ? '9+' : unreadCount;
                 notifBadge.classList.remove('hidden');
+                if (navigator.setAppBadge) navigator.setAppBadge(unreadCount).catch(() => {});
             } else {
                 notifBadge.classList.add('hidden');
+                if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
             }
         }
 
@@ -3309,105 +3320,140 @@
             card.addEventListener('click', () => showGame(card.dataset.game));
         });
 
-        /* ================= COUPLE QUESTIONS ================= */
-        const coupleQuestions = [
-            "What's your favorite memory of us so far?",
-            "What made you realize you had feelings for me?",
-            "What's one thing I do that always makes you smile?",
-            "If we could teleport anywhere right now, where would we go?",
-            "What's a song that reminds you of us?",
-            "What's your favorite thing about how I show love?",
-            "What's a small habit of mine you secretly love?",
-            "What do you look forward to most about our future?",
-            "What's the funniest thing that's happened between us?",
-            "What's one thing you want us to try together this year?",
-            "How do you like to be comforted when you're upset?",
-            "What's your love language, and do you think I speak it well?",
-            "What's a dream date you'd want us to go on?",
-            "What's something you're proud of me for?",
-            "What's your favorite photo of us and why?",
-            "If we had a movie about us, what would the title be?",
-            "What's something new you've learned about me recently?",
-            "What's a place you'd love for us to live someday?",
-            "What's one thing that instantly makes you think of me?",
-            "What's your favorite way to spend a lazy day together?",
-            "What's something I said once that you never forgot?",
-            "What's a tradition you'd want us to start?",
-            "What's the most romantic thing anyone's done for you?",
-            "What's a fear you have about us that I could help with?",
-            "What's your favorite nickname I have for you?",
-            "What's something you're grateful for about our relationship?",
-            "If you could relive one day with me, which would it be?",
-            "What's a goal we should work on together?",
-            "What's something that makes you feel closest to me?",
-            "What's one thing you want me to never stop doing?",
-            "What food would you want us to learn to cook together?",
-            "What's a compliment you wish I gave you more often?",
-            "What's your favorite way I say 'I love you' without words?",
-            "What's something about our future wedding/home/life you daydream about?",
-            "What's one adventure you want us to have before we're old?"
-        ];
-
-        function shuffledDeck() {
-            const arr = [...coupleQuestions];
-            for (let i = arr.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [arr[i], arr[j]] = [arr[j], arr[i]];
-            }
-            return arr;
-        }
-
+        /* ================= COUPLE QUESTIONS: PROCEDURAL DECK ================= */
+        const questionParts = {
+            person: ['I do', 'you do', 'we do together'],
+            moments: ['a quiet evening', 'a difficult day', 'a spontaneous adventure', 'a normal morning', 'a long-distance day'],
+            values: ['trust', 'patience', 'honesty', 'kindness', 'quality time', 'personal space'],
+            places: ['by the sea', 'in a new city', 'at home', 'somewhere in the mountains', 'in a little café'],
+            dreams: ['a home that feels like us', 'a trip we will never forget', 'a tradition of our own', 'a project we build together', 'a peaceful everyday life'],
+            memories: ['our first conversation', 'a time we laughed uncontrollably', 'a moment you felt understood', 'a small thing I did for you', 'a day you wish you could relive'],
+            silly: ['a ridiculous talent', 'a harmless weird habit', 'a fictional world', 'an imaginary competition', 'a very dramatic everyday problem']
+        };
+        const questionTemplates = {
+            deep: [
+                'What does {values} mean to you when things get difficult?',
+                'When was the last time you felt completely understood by me?',
+                'What is something you find hard to explain but wish I understood?',
+                'Which part of {moments} reveals the most about who you are?',
+                'What is one fear you would like us to face as a team?',
+                'How can I make it easier for you to talk about difficult feelings?',
+                'What does emotional safety look like in our relationship?',
+                'Which belief about love has changed for you over time?'
+            ],
+            fun: [
+                'If we had to turn {silly} into a business, what would we call it?',
+                'Which of us would survive longer in a zombie movie, and why?',
+                'If our relationship had a ridiculous mascot, what would it be?',
+                'What is the funniest thing we could do on a completely free day?',
+                'If we swapped lives for 24 hours, what would surprise you most?',
+                'What harmless rule would you add to our own little world?',
+                'Which of us is more likely to laugh at the worst possible moment?',
+                'If we competed in {silly}, who would win?'
+            ],
+            romantic: [
+                'What little thing {person} do that makes you feel loved?',
+                'What would your perfect slow day together look like?',
+                'Which of these would you choose for a date: {places} or somewhere new?',
+                'What moment made you feel especially close to me?',
+                'How do you most like to receive affection when we are apart?',
+                'What song would you choose as the soundtrack to {memories}?',
+                'What is one romantic tradition you would love us to start?',
+                'What compliment from me stays with you the longest?'
+            ],
+            future: [
+                'What would make {dreams} feel truly like home to you?',
+                'Which small habit should we build now for the future we want?',
+                'If we planned a trip to {places}, what would be the first thing we do?',
+                'What is one goal you would love us to reach together in the next year?',
+                'How do you imagine an ordinary happy day in our future?',
+                'What skill would you like us to learn together?',
+                'What should we always make time for, no matter how busy life gets?',
+                'What does growing together look like to you?'
+            ]
+        };
         const questionsDocRef = doc(db, 'games_live', 'questions');
         let qDeckLocal = [];
         let qIndexLocal = 0;
+        let currentQuestionLocal = '';
+        let currentCategoryLocal = 'romantic';
 
-        // (initialised atomically in initGameDocs below)
+        function makeQuestion(category, usedQuestions = []) {
+            const templates = questionTemplates[category] || questionTemplates.romantic;
+            const keys = Object.keys(questionParts);
+            for (let attempt = 0; attempt < 300; attempt++) {
+                let question = templates[Math.floor(Math.random() * templates.length)];
+                question = question.replace(/\{(person|moments|values|places|dreams|memories|silly)\}/g, (_, key) => {
+                    const values = questionParts[key];
+                    return values[Math.floor(Math.random() * values.length)];
+                });
+                if (!usedQuestions.includes(question)) return question;
+            }
+            return 'What is one new thing you would love us to discover about each other?';
+        }
 
         onSnapshot(questionsDocRef, snap => {
             if (!snap.exists()) return;
             const data = snap.data();
             qDeckLocal = data.deck || [];
             qIndexLocal = data.index || 0;
+            currentQuestionLocal = data.currentQuestion || qDeckLocal[qIndexLocal] || '';
+            currentCategoryLocal = data.category || 'romantic';
+            const categoryEl = document.getElementById('questionCategory');
+            if (categoryEl && categoryEl.value !== currentCategoryLocal) categoryEl.value = currentCategoryLocal;
             renderQuestion();
         });
 
         function renderQuestion() {
-            if (!qDeckLocal.length) return;
-            document.getElementById('questionText').textContent = qDeckLocal[qIndexLocal] || qDeckLocal[0];
-            document.getElementById('qCount').textContent = `Question ${qIndexLocal + 1} of ${qDeckLocal.length}`;
+            if (!currentQuestionLocal) {
+                document.getElementById('questionText').textContent = 'Choose a mood, then press “Next Question”.';
+                document.getElementById('qCount').textContent = 'Ready when you are ♡';
+                return;
+            }
+            document.getElementById('questionText').textContent = currentQuestionLocal;
+            document.getElementById('qCount').textContent = (currentCategoryLocal || 'romantic').toUpperCase() + ' · Question ' + (qIndexLocal + 1);
         }
 
-        // Transaction: two quick taps can no longer skip or overwrite each other.
         document.getElementById('nextQBtn').onclick = () => requireRole(async () => {
+            const selectedCategory = document.getElementById('questionCategory').value;
             try {
                 await runTransaction(db, async tx => {
                     const snap = await tx.get(questionsDocRef);
-                    const d = snap.exists() ? snap.data() : { deck: [], index: -1 };
-                    let deck = d.deck && d.deck.length ? d.deck : shuffledDeck();
-                    let idx = (d.index ?? -1) + 1;
-                    if (idx >= deck.length) { deck = shuffledDeck(); idx = 0; }
-                    tx.set(questionsDocRef, { deck, index: idx });
+                    const data = snap.exists() ? snap.data() : {};
+                    const used = Array.isArray(data.usedQuestions) ? data.usedQuestions : [];
+                    const question = makeQuestion(selectedCategory, used);
+                    const nextUsed = [...used, question].slice(-250);
+                    tx.set(questionsDocRef, {
+                        currentQuestion: question,
+                        category: selectedCategory,
+                        index: (Number(data.index) || 0) + 1,
+                        usedQuestions: nextUsed,
+                        updatedBy: myRole,
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
                 });
-                await window.notifyPartner('games', `${myRole} moved to a new couple question 💬`);
+                await window.notifyPartner('games', myRole + ' picked a new ' + selectedCategory + ' couple question 💬');
             } catch (error) {
                 console.error('[games] next question failed', error);
                 alert('Next question failed. Check your connection and try again.');
             }
         });
 
-        /* ================= TIC TAC TOE ================= */
+        /* ================= TIC TAC TOE: ALTERNATING STARTER ================= */
         const xoDocRef = doc(db, 'games_live', 'xo');
         const xoBoardEl = document.getElementById('xoBoard');
         const xoStatusEl = document.getElementById('xoStatus');
         const WIN_LINES = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
         let xoState = null;
 
-        // Atomic first-time init for both docs (no race if both open the page together).
         async function initGameDocs() {
             await runTransaction(db, async tx => {
                 const q = await tx.get(questionsDocRef), x = await tx.get(xoDocRef);
-                if (!q.exists()) tx.set(questionsDocRef, { deck: shuffledDeck(), index: 0 });
-                if (!x.exists()) tx.set(xoDocRef, { board: Array(9).fill(null), turn: 'X', scoreX: 0, scoreO: 0, status: 'playing', winLine: null });
+                if (!q.exists()) tx.set(questionsDocRef, { currentQuestion: '', category: 'romantic', index: 0, usedQuestions: [] });
+                if (!x.exists()) tx.set(xoDocRef, {
+                    board: Array(9).fill(null), turn: 'X', starter: 'X', roundNumber: 1,
+                    scoreX: 0, scoreO: 0, status: 'playing', winLine: null
+                });
             });
         }
         initGameDocs().catch(e => console.error('init games failed', e));
@@ -3421,7 +3467,7 @@
         function renderXoBoard() {
             if (!xoState) return;
             xoBoardEl.innerHTML = '';
-            xoState.board.forEach((val, i) => {
+            (xoState.board || Array(9).fill(null)).forEach((val, i) => {
                 const cell = document.createElement('div');
                 cell.className = 'xo-cell' + (val === 'X' ? ' x-mark' : '');
                 if (xoState.winLine && xoState.winLine.includes(i)) cell.classList.add('win-cell');
@@ -3431,19 +3477,17 @@
             });
             document.getElementById('xoScoreX').textContent = xoState.scoreX || 0;
             document.getElementById('xoScoreO').textContent = xoState.scoreO || 0;
-
             if (xoState.status === 'won') {
                 const winner = xoState.winLine ? xoState.board[xoState.winLine[0]] : '';
-                xoStatusEl.textContent = `Player ${winner} wins this round! 🎉`;
+                xoStatusEl.textContent = 'Player ' + winner + ' wins this round! 🎉';
             } else if (xoState.status === 'draw') {
                 xoStatusEl.textContent = "It's a draw!";
             } else {
                 const me = mySymbol();
-                xoStatusEl.textContent = xoState.turn === me ? `Your turn (${xoState.turn})` : `Player ${xoState.turn}'s turn`;
+                xoStatusEl.textContent = xoState.turn === me ? 'Your turn (' + xoState.turn + ')' : 'Player ' + xoState.turn + "'s turn";
             }
         }
 
-        // Every move is validated against the LATEST server state inside a transaction.
         function xoPlay(i) {
             requireRole(async () => {
                 let didMove = false;
@@ -3470,7 +3514,7 @@
                         didMove = true;
                         tx.update(xoDocRef, update);
                     });
-                    if (didMove) await window.notifyPartner('games', `${myRole} made a move in Tic Tac Toe ✖️`);
+                    if (didMove) await window.notifyPartner('games', myRole + ' made a move in Tic Tac Toe ✖️');
                 } catch (error) {
                     console.error('[games] move failed', error);
                     alert('Move failed. Check your connection and try again.');
@@ -3478,9 +3522,24 @@
             });
         }
 
-        document.getElementById('xoResetBtn').onclick = () => requireRole(() => runTransaction(db, async tx => {
-            tx.update(xoDocRef, { board: Array(9).fill(null), turn: 'X', status: 'playing', winLine: null });
-        }, 'Reset'));
+        document.getElementById('xoResetBtn').onclick = () => requireRole(async () => {
+            await runTransaction(db, async tx => {
+                const snap = await tx.get(xoDocRef);
+                if (!snap.exists()) return;
+                const st = snap.data();
+                const previousStarter = st.starter || st.turn || 'X';
+                const nextStarter = previousStarter === 'X' ? 'O' : 'X';
+                tx.update(xoDocRef, {
+                    board: Array(9).fill(null),
+                    turn: nextStarter,
+                    starter: nextStarter,
+                    roundNumber: (Number(st.roundNumber) || 1) + 1,
+                    status: 'playing',
+                    winLine: null
+                });
+            });
+            await window.notifyPartner('games', myRole + ' started a new Tic Tac Toe round ✖️');
+        });
 
         /* ================= SNAKE SHOWDOWN ================= */
         const snakeDocRef = doc(db, 'games_live', 'snake');
