@@ -2067,6 +2067,51 @@
         </div>
     </div>
 
+    <style>
+      #yl-feature-panel{position:fixed;inset:0;z-index:9000;display:none;overflow:auto;background:rgba(10,7,9,.97);padding:28px 16px;color:var(--cream)}
+      #yl-feature-panel.open{display:block}
+      .yl-feature-card{max-width:760px;margin:5vh auto;padding:28px;border:1px solid rgba(228,201,160,.25);border-radius:24px;background:linear-gradient(145deg,#27191f,#120c10);box-shadow:0 25px 80px #0009}
+      .yl-feature-card h2{font:32px Georgia,serif;margin:0 0 8px}.yl-feature-muted{color:var(--muted);line-height:1.6}
+      .yl-feature-actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}
+      .yl-feature-actions button,.yl-feature-close{border:1px solid rgba(228,201,160,.3);border-radius:999px;padding:12px 18px;background:#35232b;color:var(--cream);cursor:pointer}
+      .yl-feature-actions button:disabled{opacity:.45;cursor:not-allowed}
+      #yl-call-video{width:100%;max-height:360px;background:#080608;border-radius:16px;display:none;margin-top:14px}
+      #yl-call-status,#yl-location-status{min-height:24px;color:#dfc7a0;font-size:13px}
+      .yl-location-box{padding:16px;border:1px solid rgba(228,201,160,.18);border-radius:16px;margin:16px 0;background:#100b0e}
+      .yl-map-link{color:#e5cba4;text-decoration:underline}
+    </style>
+    <div id="yl-feature-panel" aria-hidden="true">
+      <div class="yl-feature-card">
+        <button class="yl-feature-close" id="yl-feature-close">← Back to our world</button>
+        <section id="yl-calls-view" hidden>
+          <h2>Our little calls ♡</h2>
+          <p class="yl-feature-muted">Start a private voice or video call with the other signed-in person. Keep this page open while calling.</p>
+          <div class="yl-feature-actions">
+            <button id="yl-call-audio">☎ Voice call</button><button id="yl-call-video-start">▣ Video call</button>
+            <button id="yl-call-answer" hidden>Answer incoming call</button><button id="yl-call-hangup" disabled>End call</button>
+          </div>
+          <video id="yl-call-video" autoplay playsinline></video>
+          <audio id="yl-call-audio-out" autoplay></audio>
+          <div id="yl-call-status" role="status">Ready when you are.</div>
+        </section>
+        <section id="yl-future-view" hidden>
+          <h2>Future Us 🫶</h2>
+          <p class="yl-feature-muted">Share your live location only when you choose. You can stop sharing any time.</p>
+          <div class="yl-location-box">
+            <strong>Your location</strong>
+            <div class="yl-feature-actions"><button id="yl-location-start">Start sharing my location</button><button id="yl-location-stop" disabled>Stop sharing</button></div>
+            <div id="yl-location-status" role="status">Location sharing is off.</div>
+          </div>
+          <div class="yl-location-box">
+            <strong>Partner's location</strong>
+            <p id="yl-partner-location" class="yl-feature-muted">Waiting for them to share their location…</p>
+            <a id="yl-partner-map" class="yl-map-link" target="_blank" rel="noopener" hidden>Open live location in Google Maps ↗</a>
+            <small id="yl-partner-updated" class="yl-feature-muted"></small>
+          </div>
+        </section>
+      </div>
+    </div>
+
     <script type="module">
       import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
       import { getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, signOut, reload } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -3863,6 +3908,149 @@
         }
     </script>
 
+
+    <script type="module">
+      import { getAuth } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+      const appAuth=getAuth(), db=getFirestore();
+      const panel=document.getElementById('yl-feature-panel');
+      const role=()=>localStorage.getItem('ylRole');
+      const partner=()=>role()==='Yassin'?'Lara':'Yassin';
+      const statusCall=document.getElementById('yl-call-status');
+      let pc=null, localStream=null, activeRoom=null, candidateUnsubs=[], incomingUnsub=null, incomingRoom=null;
+      const callVideo=document.getElementById('yl-call-video'), callAudio=document.getElementById('yl-call-audio-out');
+      function showFeature(which){
+        if(!role() || !appAuth.currentUser){ alert('Please sign in first.'); return; }
+        panel.classList.add('open'); panel.setAttribute('aria-hidden','false');
+        document.getElementById('yl-calls-view').hidden=which!=='calls';
+        document.getElementById('yl-future-view').hidden=which!=='future';
+        if(which==='calls') watchIncoming();
+        if(which==='future') watchPartnerLocation();
+      }
+      document.getElementById('yl-feature-close').onclick=()=>{panel.classList.remove('open');panel.setAttribute('aria-hidden','true');};
+      document.querySelectorAll('.menu-card[data-coming]').forEach(card=>card.addEventListener('click',e=>{
+        e.preventDefault(); showFeature(card.dataset.coming==='Secrets'?'calls':'future');
+      }));
+      function cleanupCandidates(){candidateUnsubs.forEach(fn=>fn());candidateUnsubs=[];}
+      async function endCall(update=true){
+        cleanupCandidates();
+        if(pc){pc.ontrack=null;pc.onicecandidate=null;pc.close();pc=null;}
+        if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null;}
+        callVideo.srcObject=null;callVideo.style.display='none';callAudio.srcObject=null;
+        if(update && activeRoom) await updateDoc(doc(db,'call_rooms',activeRoom),{status:'ended',endedAt:serverTimestamp()}).catch(()=>{});
+        activeRoom=null;incomingRoom=null;
+        document.getElementById('yl-call-hangup').disabled=true;
+        document.getElementById('yl-call-answer').hidden=true;
+        statusCall.textContent='Call ended.';
+      }
+      function attachPeer(roomId,initiator,video){
+        pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});
+        pc.ontrack=e=>{
+          const stream=e.streams[0];
+          if(video){callVideo.srcObject=stream;callVideo.style.display='block';}
+          else callAudio.srcObject=stream;
+        };
+        pc.onicecandidate=e=>{
+          if(e.candidate){
+            const side=initiator?'callerCandidates':'calleeCandidates';
+            addDoc(collection(db,'call_rooms',roomId,side),e.candidate.toJSON()).catch(err=>statusCall.textContent='Connection setup error: '+err.message);
+          }
+        };
+        return pc;
+      }
+      async function startCall(video){
+        try{
+          if(!appAuth.currentUser) throw new Error('Please sign in again.');
+          await endCall(false);
+          statusCall.textContent='Requesting microphone'+(video?' and camera':'')+' permission…';
+          localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:!!video});
+          const roomRef=doc(collection(db,'call_rooms')); activeRoom=roomRef.id;
+          pc=attachPeer(activeRoom,true,video);
+          localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+          const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
+          await setDoc(roomRef,{caller:role(),callee:partner(),type:video?'video':'audio',offer:{type:offer.type,sdp:offer.sdp},status:'ringing',createdAt:serverTimestamp()});
+          candidateUnsubs.push(onSnapshot(collection(db,'call_rooms',activeRoom,'calleeCandidates'),snap=>snap.docChanges().forEach(c=>{if(c.type==='added')pc&&pc.addIceCandidate(new RTCIceCandidate(c.doc.data())).catch(console.warn);})));
+          candidateUnsubs.push(onSnapshot(roomRef,snap=>{
+            const data=snap.data(); if(!data)return;
+            if(data.answer&&pc&&pc.signalingState==='have-local-offer')pc.setRemoteDescription(new RTCSessionDescription(data.answer)).catch(console.warn);
+            if(data.status==='ended'){endCall(false);}
+          }));
+          document.getElementById('yl-call-hangup').disabled=false;
+          statusCall.textContent='Calling '+partner()+'… Waiting for answer.';
+        }catch(e){statusCall.textContent='Could not start call: '+(e.message||e);await endCall(false);}
+      }
+      function watchIncoming(){
+        if(incomingUnsub)return;
+        incomingUnsub=onSnapshot(query(collection(db,'call_rooms'),where('callee','==',role()),where('status','==','ringing')),snap=>{
+          const docSnap=snap.docs.find(d=>d.id!==activeRoom);
+          const answerBtn=document.getElementById('yl-call-answer');
+          if(docSnap){incomingRoom=docSnap.id;answerBtn.hidden=false;statusCall.textContent='Incoming '+docSnap.data().type+' call from '+docSnap.data().caller+'!';}
+          else if(!activeRoom){answerBtn.hidden=true;}
+        },e=>statusCall.textContent='Incoming-call listener: '+e.message);
+      }
+      async function answerCall(){
+        try{
+          if(!incomingRoom) return;
+          const roomId=incomingRoom; activeRoom=roomId;
+          const roomRef=doc(db,'call_rooms',roomId);
+          statusCall.textContent='Requesting microphone and camera permission…';
+          const snap=await (await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js')).getDoc(roomRef);
+          const data=snap.data(); const video=data.type==='video';
+          localStream=await navigator.mediaDevices.getUserMedia({audio:true,video});
+          pc=attachPeer(roomId,false,video);
+          localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+          await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+          const answer=await pc.createAnswer();await pc.setLocalDescription(answer);
+          await updateDoc(roomRef,{answer:{type:answer.type,sdp:answer.sdp},status:'connected'});
+          candidateUnsubs.push(onSnapshot(collection(db,'call_rooms',roomId,'callerCandidates'),ss=>ss.docChanges().forEach(c=>{if(c.type==='added')pc&&pc.addIceCandidate(new RTCIceCandidate(c.doc.data())).catch(console.warn);})));
+          candidateUnsubs.push(onSnapshot(roomRef,ss=>{if(ss.data()?.status==='ended')endCall(false);}));
+          document.getElementById('yl-call-answer').hidden=true;
+          document.getElementById('yl-call-hangup').disabled=false;
+          statusCall.textContent='Connected with '+data.caller+'.';
+        }catch(e){statusCall.textContent='Could not answer: '+(e.message||e);await endCall(false);}
+      }
+      document.getElementById('yl-call-audio').onclick=()=>startCall(false);
+      document.getElementById('yl-call-video-start').onclick=()=>startCall(true);
+      document.getElementById('yl-call-answer').onclick=answerCall;
+      document.getElementById('yl-call-hangup').onclick=()=>endCall(true);
+      window.addEventListener('beforeunload',()=>{if(pc)pc.close();if(localStream)localStream.getTracks().forEach(t=>t.stop());});
+      let locationWatch=null, locationUnsub=null;
+      const locationStatus=document.getElementById('yl-location-status');
+      async function startLocation(){
+        if(!navigator.geolocation){locationStatus.textContent='Geolocation is not supported by this browser.';return;}
+        if(!appAuth.currentUser){locationStatus.textContent='Please sign in first.';return;}
+        locationStatus.textContent='Waiting for location permission…';
+        locationWatch=navigator.geolocation.watchPosition(async pos=>{
+          const payload={role:role(),latitude:pos.coords.latitude,longitude:pos.coords.longitude,accuracy:Math.round(pos.coords.accuracy),updatedAt:serverTimestamp(),sharing:true};
+          try{await setDoc(doc(db,'live_locations',role()),payload,{merge:true});locationStatus.textContent='Sharing live location. Accuracy about '+payload.accuracy+' m.';}
+          catch(e){locationStatus.textContent='Could not share: '+e.message;}
+        },err=>{locationStatus.textContent='Location error: '+err.message;stopLocation(false);},{enableHighAccuracy:true,maximumAge:10000,timeout:20000});
+        document.getElementById('yl-location-start').disabled=true;
+        document.getElementById('yl-location-stop').disabled=false;
+      }
+      async function stopLocation(clear=true){
+        if(locationWatch!==null){navigator.geolocation.clearWatch(locationWatch);locationWatch=null;}
+        document.getElementById('yl-location-start').disabled=false;
+        document.getElementById('yl-location-stop').disabled=true;
+        if(clear&&role())await setDoc(doc(db,'live_locations',role()),{role:role(),sharing:false,updatedAt:serverTimestamp()},{merge:true}).catch(console.warn);
+        locationStatus.textContent='Location sharing is off.';
+      }
+      function watchPartnerLocation(){
+        if(locationUnsub)return;
+        locationUnsub=onSnapshot(doc(db,'live_locations',partner()),snap=>{
+          const data=snap.data(),label=document.getElementById('yl-partner-location'),link=document.getElementById('yl-partner-map'),updated=document.getElementById('yl-partner-updated');
+          if(!data||!data.sharing||typeof data.latitude!=='number'||typeof data.longitude!=='number'){
+            label.textContent=partner()+' is not sharing their location right now.';link.hidden=true;updated.textContent='';return;
+          }
+          label.textContent=partner()+' is sharing their live location.';
+          link.href='https://www.google.com/maps?q='+data.latitude+','+data.longitude;link.hidden=false;
+          updated.textContent='Last update: '+(data.updatedAt?.toDate?data.updatedAt.toDate().toLocaleString():'just now')+' · Accuracy ±'+(data.accuracy||'?')+' m';
+        },e=>document.getElementById('yl-partner-location').textContent='Could not load location: '+e.message);
+      }
+      document.getElementById('yl-location-start').onclick=startLocation;
+      document.getElementById('yl-location-stop').onclick=()=>stopLocation(true);
+      panel.addEventListener('click',e=>{if(e.target===panel)panel.classList.remove('open');});
+    </script>
 </body>
 
 </html>
