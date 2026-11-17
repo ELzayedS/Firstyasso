@@ -4,6 +4,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0d080b">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" type="image/svg+xml" href="./icons/yl-icon.svg">
     <title>Y&L — Our Little World</title>
     <style>
         :root {
@@ -1419,6 +1425,145 @@
                 gap: 24px !important;
             }
         }
+    
+        /* ================= OUR PLACES — native Y&L section ================= */
+        .places-shell {
+            background: linear-gradient(145deg, rgba(32, 21, 26, .72), rgba(23, 16, 20, .66));
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            padding: clamp(18px, 3vw, 30px);
+            margin-bottom: 28px;
+            box-shadow: 0 18px 50px rgba(0, 0, 0, .24), inset 0 1px 0 rgba(245, 238, 231, .035);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        .places-heading { text-align: center; margin: 4px 0 24px; }
+        .places-heading .eyebrow { margin-bottom: 10px; }
+        .places-heading h2 { color: var(--champ); font-size: clamp(25px, 4vw, 34px); font-weight: 400; margin: 0 0 8px; }
+        .places-heading p { color: var(--muted); font-size: 14px; font-style: italic; margin: 0; }
+        .places-tabs { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin: 0 auto 24px; }
+        .places-tab {
+            border: 1px solid var(--line); background: rgba(255,255,255,.025); color: var(--muted);
+            border-radius: 999px; padding: 11px 17px; cursor: pointer; transition: .25s;
+            font: 10px Arial, sans-serif; letter-spacing: .12em; text-transform: uppercase;
+        }
+        .places-tab.active, .places-tab:hover { background: rgba(185,135,145,.12); border-color: rgba(185,135,145,.58); color: var(--cream); }
+        .places-view { display: none; animation: reveal .4s ease; }
+        .places-view.active { display: block; }
+        .places-panel {
+            background: linear-gradient(145deg, rgba(32,21,26,.58), rgba(23,16,20,.48));
+            border: 1px solid rgba(228,201,160,.14); border-radius: 22px; padding: clamp(18px,3vw,28px);
+            box-shadow: inset 0 1px 0 rgba(245,238,231,.035);
+        }
+        .places-panel-head { text-align: center; margin-bottom: 12px; }
+        .places-panel-head h3 { color: var(--champ); font-size: 26px; font-weight: 400; margin: 0 0 7px; }
+        .places-panel-head p { color: var(--muted); font-size: 13px; margin: 0; }
+        .places-spin-stage {
+            height: 350px; display: grid; place-items: center; position: relative; overflow: hidden;
+            margin: 10px 0 0; perspective: 1000px;
+            background: radial-gradient(ellipse at center, rgba(185,135,145,.055), transparent 65%);
+        }
+        .places-spin-stage:before, .places-spin-stage:after {
+            content: ""; position: absolute; left: 8%; right: 8%; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--line), transparent); z-index: 4;
+        }
+        .places-spin-stage:before { top: 36px; } .places-spin-stage:after { bottom: 36px; }
+        .places-roller { width: min(520px, 94vw); height: 270px; position: relative; transform-style: preserve-3d; }
+        .places-roll-card, .places-browse-card {
+            position: absolute; overflow: hidden; border: 1px solid rgba(228,201,160,.30);
+            background: var(--panel2); box-shadow: 0 18px 40px rgba(0,0,0,.48);
+        }
+        .places-roll-card {
+            width: 205px; height: 245px; left: calc(50% - 102.5px); top: 12px; border-radius: 18px;
+            transition: transform .58s cubic-bezier(.22,.72,.2,1), opacity .58s, filter .58s;
+        }
+        .places-roll-card img, .places-browse-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .places-photo-fallback {
+            width: 100%; height: 100%; display: grid; place-items: center; color: rgba(228,201,160,.75);
+            font-size: 42px; background: radial-gradient(circle at 50% 35%, rgba(185,135,145,.30), transparent 52%), linear-gradient(145deg,#2a1a21,#100b0e);
+        }
+        .places-roll-card:after, .places-browse-card:after {
+            content: ""; position: absolute; inset: 26% 0 0; background: linear-gradient(transparent, rgba(13,8,11,.96)); pointer-events: none;
+        }
+        .places-copy { position: absolute; z-index: 2; left: 16px; right: 16px; bottom: 15px; }
+        .places-copy small { color: var(--champ); font: 9px Arial,sans-serif; letter-spacing: .18em; text-transform: uppercase; }
+        .places-copy h4 { color: var(--cream); font-size: 22px; line-height: 1.15; font-weight: 400; margin: 6px 0 0; overflow-wrap: anywhere; }
+        .places-roll-card.pos-left { transform: translateX(-140px) scale(.82) rotate(-9deg); opacity: .38; filter: brightness(.5); z-index: 1; }
+        .places-roll-card.pos-mid { transform: translateX(0) scale(1); opacity: 1; filter: none; z-index: 3; }
+        .places-roll-card.pos-right { transform: translateX(140px) scale(.82) rotate(9deg); opacity: .38; filter: brightness(.5); z-index: 2; }
+        .places-roller.rolling .places-roll-card.pos-left { transform: translateX(-280px) scale(.68) rotate(-13deg); opacity: 0; }
+        .places-roller.rolling .places-roll-card.pos-mid { transform: translateX(-140px) scale(.82) rotate(-9deg); opacity: .32; }
+        .places-roller.rolling .places-roll-card.pos-right { transform: translateX(0) scale(1); opacity: 1; filter: none; }
+        .places-controls { text-align: center; }
+        .places-action {
+            border: 1px solid rgba(185,135,145,.7); border-radius: 999px; padding: 11px 23px;
+            background: rgba(185,135,145,.13); color: var(--cream); cursor: pointer; transition: .25s;
+            font: 10px Arial,sans-serif; letter-spacing: .17em; text-transform: uppercase;
+        }
+        .places-action:hover { background: rgba(185,135,145,.24); border-color: var(--champ); transform: translateY(-2px); }
+        .places-action:disabled { opacity: .5; cursor: wait; transform: none; }
+        .places-note { color: var(--muted); font-size: 11px; font-style: italic; margin: 11px 0 0; }
+        .places-result {
+            display: none; max-width: 490px; margin: 20px auto 0; padding: 17px;
+            border: 1px solid var(--line); border-radius: 16px; background: rgba(13,8,11,.38); text-align: center;
+        }
+        .places-result.show { display: block; animation: reveal .45s ease; }
+        .places-result strong { display: block; color: var(--champ); font-size: 22px; font-weight: 400; margin-bottom: 5px; }
+        .places-result p { color: var(--muted); font-size: 13px; line-height: 1.55; margin: 6px 0; }
+        .places-result a, .places-map-link { display: inline-block; color: var(--rose); margin-top: 8px; font: 10px Arial,sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+        .places-browse-wrap { min-height: 390px; display: flex; justify-content: center; align-items: center; overflow: hidden; touch-action: pan-y; }
+        .places-deck { width: 260px; height: 330px; position: relative; touch-action: pan-y; cursor: grab; user-select: none; }
+        .places-browse-card { inset: 0; border-radius: 20px; transition: transform .38s, opacity .38s; user-select: none; }
+        .places-browse-card.front { z-index: 3; }
+        .places-browse-card.back-one { z-index: 2; transform: translate(30px,7px) rotate(8deg) scale(.95); filter: brightness(.62); }
+        .places-browse-card.back-two { z-index: 1; transform: translate(-29px,13px) rotate(-8deg) scale(.9); filter: brightness(.43); }
+        .places-browse-card .places-copy h4 { font-size: 25px; }
+        .places-browse-card .places-copy p { color: #d0c1bc; font-size: 12px; line-height: 1.5; margin: 7px 0 0; overflow-wrap: anywhere; }
+        .places-browse-controls { display: flex; justify-content: center; align-items: center; gap: 16px; }
+        .places-arrow { width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 50%; color: var(--champ); background: rgba(185,135,145,.08); cursor: pointer; font-size: 18px; }
+        .places-count { color: var(--champ); text-align: center; font: 10px Arial,sans-serif; letter-spacing: .17em; min-width: 80px; }
+        .places-empty { text-align: center; color: var(--muted); font-style: italic; padding: 28px 12px; line-height: 1.6; }
+        .places-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 720px; margin: 24px auto 0; }
+        .places-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+        .places-field.full { grid-column: 1 / -1; }
+        .places-field label { color: var(--muted); font: 10px Arial,sans-serif; letter-spacing: .16em; text-transform: uppercase; }
+        .places-field input, .places-field textarea {
+            width: 100%; min-width: 0; background: rgba(13,8,11,.58); border: 1px solid rgba(228,201,160,.15);
+            border-radius: 12px; padding: 12px 14px; color: var(--cream); font: 14px Georgia,serif; outline: none;
+        }
+        .places-field input:focus, .places-field textarea:focus { border-color: var(--champ); }
+        .places-field textarea { min-height: 88px; resize: vertical; line-height: 1.5; }
+        .places-field input[type=file] { font: 11px Arial,sans-serif; color: var(--muted); }
+        .places-field input[type=file]::file-selector-button {
+            border: 1px solid var(--line); border-radius: 20px; background: rgba(185,135,145,.14);
+            color: var(--cream); padding: 8px 12px; margin-right: 10px; cursor: pointer;
+        }
+        .places-preview { display: none; width: 100%; max-height: 190px; object-fit: cover; border: 1px solid var(--line); border-radius: 13px; }
+        .places-map-row { display: flex; gap: 9px; }
+        .places-map-row input { flex: 1; }
+        .places-map-open { white-space: nowrap; border: 1px solid var(--line); border-radius: 12px; background: rgba(185,135,145,.08); color: var(--champ); padding: 0 13px; cursor: pointer; font: 9px Arial,sans-serif; letter-spacing: .08em; }
+        .places-help { color: #8e7f7e; font-size: 11px; line-height: 1.5; }
+        .places-form-foot { grid-column: 1/-1; display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 4px; }
+        .places-status { color: var(--muted); font-size: 11px; line-height: 1.5; }
+        .places-memory { color: var(--muted); font-size: 13px; line-height: 1.55; }
+        @media (max-width: 700px) {
+            .places-form { grid-template-columns: 1fr; }
+            .places-field.full, .places-form-foot { grid-column: auto; }
+            .places-map-row { flex-direction: column; }
+            .places-map-open { padding: 12px; }
+            .places-spin-stage { height: 325px; }
+            .places-roll-card { width: 178px; height: 225px; left: calc(50% - 89px); }
+            .places-roll-card.pos-left { transform: translateX(-108px) scale(.78) rotate(-8deg); }
+            .places-roll-card.pos-right { transform: translateX(108px) scale(.78) rotate(8deg); }
+            .places-roller.rolling .places-roll-card.pos-left { transform: translateX(-225px) scale(.65) rotate(-12deg); }
+            .places-roller.rolling .places-roll-card.pos-mid { transform: translateX(-108px) scale(.78) rotate(-8deg); }
+            .places-deck { width: 235px; height: 310px; }
+            .places-form-foot { align-items: flex-start; flex-direction: column; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .places-view, .places-roll-card, .places-browse-card, .places-action { animation: none !important; transition: none !important; }
+        }
+
     </style>
 </head>
 
@@ -1741,6 +1886,100 @@
         </section>
     </main>
 
+
+    <!-- OUR PLACES SECTION -->
+    <header id="places-header" class="site-section hidden-section">
+        <div class="eyebrow">Y&L — Our Little World</div>
+        <h1>🌍 Our Places</h1>
+        <div class="intro">Every place has a story. Let's keep ours close.</div>
+        <a class="back-home" onclick="openWorld()">↑ Back to Main Menu</a>
+    </header>
+
+    <main id="places-body" class="container site-section hidden-section">
+        <div class="places-heading">
+            <div class="eyebrow">A MAP OF OUR MOMENTS</div>
+            <h2>Our Places</h2>
+            <p>Every place has a story. Let's keep ours close.</p>
+        </div>
+        <nav class="places-tabs" id="placesTabs" aria-label="Our Places views">
+            <button class="places-tab active" type="button" data-places-view="spin">✧ Today's Spot?</button>
+            <button class="places-tab" type="button" data-places-view="browse">♡ Our Collection</button>
+            <button class="places-tab" type="button" data-places-view="add">＋ Add a Place</button>
+        </nav>
+
+        <section class="places-view active" id="placesSpinView">
+            <div class="places-shell">
+                <div class="places-panel-head">
+                    <h3>Let fate decide</h3>
+                    <p>A little surprise for our next adventure.</p>
+                </div>
+                <div class="places-spin-stage">
+                    <div class="places-roller" id="placesRoller" aria-live="polite"></div>
+                </div>
+                <div class="places-controls">
+                    <button class="places-action" id="placesSpinBtn" type="button" disabled>✦ &nbsp; SPIN</button>
+                    <p class="places-note">Not feeling it? Spin again. No hard feelings ♡</p>
+                </div>
+                <div class="places-result" id="placesResult" aria-live="polite"></div>
+            </div>
+        </section>
+
+        <section class="places-view" id="placesBrowseView">
+            <div class="places-shell">
+                <div class="places-panel-head">
+                    <h3>Our little collection</h3>
+                    <p>Swipe or use the arrows to revisit the places we love.</p>
+                </div>
+                <div class="places-browse-wrap">
+                    <div class="places-deck" id="placesDeck" aria-label="Saved places cards"></div>
+                </div>
+                <div class="places-browse-controls">
+                    <button class="places-arrow" id="placesPrev" type="button" aria-label="Previous place">‹</button>
+                    <div class="places-count" id="placesCount">00 / 00</div>
+                    <button class="places-arrow" id="placesNext" type="button" aria-label="Next place">›</button>
+                </div>
+                <p class="places-note" style="text-align:center;">← &nbsp; SWIPE LEFT OR RIGHT &nbsp; →</p>
+            </div>
+        </section>
+
+        <section class="places-view" id="placesAddView">
+            <div class="places-shell">
+                <div class="places-panel-head">
+                    <h3>Save a new memory</h3>
+                    <p>Add a place to our little world. The details are optional.</p>
+                </div>
+                <form class="places-form" id="placesForm">
+                    <div class="places-field full">
+                        <label for="placesName">Place name *</label>
+                        <input id="placesName" name="name" maxlength="120" placeholder="e.g. our favorite little café" required>
+                    </div>
+                    <div class="places-field full">
+                        <label for="placesPhoto">Place photo (optional)</label>
+                        <input id="placesPhoto" name="photo" type="file" accept="image/*">
+                        <img id="placesPhotoPreview" class="places-preview" alt="Selected place preview">
+                        <span class="places-help">Choose a photo from your phone or computer. It will be uploaded using the website's existing image-upload service.</span>
+                    </div>
+                    <div class="places-field full">
+                        <label for="placesLocation">Google Maps location (optional)</label>
+                        <div class="places-map-row">
+                            <input id="placesLocation" name="location" type="url" placeholder="Paste the Google Maps share link here">
+                            <button class="places-map-open" id="placesOpenMaps" type="button">CHOOSE ON MAPS ↗</button>
+                        </div>
+                        <span class="places-help">Search the place in Google Maps, tap Share, then paste its link here.</span>
+                    </div>
+                    <div class="places-field full">
+                        <label for="placesMemory">Our memory (optional)</label>
+                        <textarea id="placesMemory" name="memory" maxlength="1200" placeholder="A little note we'll want to remember..."></textarea>
+                    </div>
+                    <div class="places-form-foot">
+                        <span class="places-status" id="placesFormStatus" role="status">Your shared places collection is ready.</span>
+                        <button class="places-action" id="placesSaveBtn" type="submit">SAVE PLACE ♡</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    </main>
+
     <!-- Role Picker -->
     <div class="role-picker" id="rolePicker">
         <div class="role-picker-inner">
@@ -1785,9 +2024,10 @@
                     <div class="menu-name">Our Music</div>
                     <div class="menu-desc">Songs that tell our story.</div>
                 </a>
-                <a class="menu-card" data-coming="Our Places">
+                <a class="menu-card" data-section="places">
                     <div class="menu-icon">🌍</div>
                     <div class="menu-name">Our Places</div>
+                    <div class="menu-desc">The places that hold our memories.</div>
                 </a>
                 <a class="menu-card" data-coming="Secrets">
                     <div class="menu-icon">🔐</div>
@@ -2650,6 +2890,250 @@
                 renderNotifications();
             }, err => console.error('[notifications] listener failed', err));
         };
+
+        /* ================= OUR PLACES — Firestore + existing media pipeline ================= */
+        const placesCollection = collection(db, 'our_places');
+        let placesItems = [];
+        let placesChosen = 0;
+        let placesBrowseIndex = 0;
+        let placesSpinning = false;
+        let placesPhotoFile = null;
+        let placesPreviewUrl = null;
+        const placesRollerEl = document.getElementById('placesRoller');
+        const placesDeckEl = document.getElementById('placesDeck');
+        const placesSpinBtn = document.getElementById('placesSpinBtn');
+        const placesResultEl = document.getElementById('placesResult');
+        const placesFormEl = document.getElementById('placesForm');
+        const placesStatusEl = document.getElementById('placesFormStatus');
+
+        function placesPhotoMarkup(place) {
+            const photoUrl = safeUrl(place.photo || '');
+            if (photoUrl) return '<img src="' + escapeHtml(photoUrl) + '" alt="' + escapeHtml(place.name || 'Our place') + '" loading="lazy">';
+            return '<div class="places-photo-fallback" aria-hidden="true">✦</div>';
+        }
+        function placesCardMarkup(place, className, smallText) {
+            const name = escapeHtml(place.name || 'A place in our story');
+            const memory = escapeHtml(place.memory || 'A memory waiting to be made ♡');
+            return '<article class="' + className + '">' + placesPhotoMarkup(place) +
+                '<div class="places-copy"><small>' + escapeHtml(smallText || '✦ A PLACE IN OUR STORY') +
+                '</small><h4>' + name + '</h4>' +
+                (className.indexOf('browse') !== -1 ? '<p>' + memory + '</p>' : '') + '</div></article>';
+        }
+        function placesMapUrl(place) {
+            const candidate = safeUrl(place.locationLink || '');
+            if (candidate) {
+                try {
+                    const host = new URL(candidate).hostname.toLowerCase();
+                    if (host === 'google.com' || host.endsWith('.google.com') || host === 'goo.gl' || host.endsWith('.goo.gl')) return candidate;
+                } catch (e) { /* use the place-name search below */ }
+            }
+            return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place.name || '');
+        }
+        function placesRenderRoller() {
+            if (!placesItems.length) {
+                placesRollerEl.innerHTML = '<div class="places-empty">Our map is waiting for its first memory.<br>Add a place and let fate choose your next adventure ♡</div>';
+                placesSpinBtn.disabled = true;
+                return;
+            }
+            placesSpinBtn.disabled = placesSpinning;
+            const total = placesItems.length;
+            if (total === 1) {
+                placesRollerEl.innerHTML = placesCardMarkup(placesItems[0], 'places-roll-card pos-mid');
+                return;
+            }
+            const prev = (placesChosen - 1 + total) % total;
+            const next = (placesChosen + 1) % total;
+            placesRollerEl.innerHTML =
+                placesCardMarkup(placesItems[prev], 'places-roll-card pos-left') +
+                placesCardMarkup(placesItems[placesChosen], 'places-roll-card pos-mid') +
+                placesCardMarkup(placesItems[next], 'places-roll-card pos-right');
+        }
+        function placesRenderResult() {
+            if (!placesItems.length) { placesResultEl.classList.remove('show'); placesResultEl.innerHTML = ''; return; }
+            const place = placesItems[placesChosen];
+            const memory = place.memory ? '<p>' + escapeHtml(place.memory) + '</p>' : '';
+            placesResultEl.innerHTML = '<strong>' + escapeHtml(place.name) + '</strong>' + memory +
+                '<a href="' + escapeHtml(placesMapUrl(place)) + '" target="_blank" rel="noopener noreferrer">OPEN IN GOOGLE MAPS ↗</a>';
+            placesResultEl.classList.add('show');
+        }
+        function placesRenderBrowse() {
+            if (!placesItems.length) {
+                placesDeckEl.innerHTML = '<div class="places-empty">No saved places yet.<br>Add your first place to start the collection ♡</div>';
+                document.getElementById('placesCount').textContent = '00 / 00';
+                return;
+            }
+            const total = placesItems.length;
+            placesBrowseIndex = ((placesBrowseIndex % total) + total) % total;
+            if (total === 1) {
+                placesDeckEl.innerHTML = placesCardMarkup(placesItems[0], 'places-browse-card front', '✦ 1 / 1');
+            } else {
+                const order = [(placesBrowseIndex + 2) % total, (placesBrowseIndex + 1) % total, placesBrowseIndex];
+                const classes = ['back-two', 'back-one', 'front'];
+                placesDeckEl.innerHTML = order.map((index, i) =>
+                    placesCardMarkup(placesItems[index], 'places-browse-card ' + classes[i], '✦ ' + (placesBrowseIndex + 1) + ' / ' + total)
+                ).join('');
+            }
+            document.getElementById('placesCount').textContent =
+                String(placesBrowseIndex + 1).padStart(2, '0') + ' / ' + String(total).padStart(2, '0');
+        }
+        function placesMoveBrowse(direction) {
+            if (!placesItems.length) return;
+            placesBrowseIndex = (placesBrowseIndex + direction + placesItems.length) % placesItems.length;
+            placesRenderBrowse();
+        }
+        function placesSetView(name) {
+            document.querySelectorAll('#placesTabs .places-tab').forEach(button =>
+                button.classList.toggle('active', button.dataset.placesView === name));
+            document.querySelectorAll('.places-view').forEach(view => view.classList.remove('active'));
+            const view = document.getElementById('places' + name.charAt(0).toUpperCase() + name.slice(1) + 'View');
+            if (view) view.classList.add('active');
+            if (name === 'browse') placesRenderBrowse();
+        }
+        document.querySelectorAll('#placesTabs .places-tab').forEach(button =>
+            button.addEventListener('click', () => placesSetView(button.dataset.placesView)));
+
+        function placesSleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+        placesSpinBtn.addEventListener('click', async () => {
+            if (placesSpinning || !placesItems.length) return;
+            if (placesItems.length === 1) { placesChosen = 0; placesRenderResult(); return; }
+            placesSpinning = true;
+            placesSpinBtn.disabled = true;
+            placesSpinBtn.textContent = '✦  SPINNING...';
+            placesResultEl.classList.remove('show');
+            const total = placesItems.length;
+            const target = Math.floor(Math.random() * total);
+            const steps = ((target - placesChosen + total) % total) + total * (2 + Math.floor(Math.random() * 2));
+            try {
+                for (let i = 0; i < steps; i++) {
+                    placesChosen = (placesChosen + 1) % total;
+                    placesRollerEl.classList.add('rolling');
+                    await placesSleep(230);
+                    placesRenderRoller();
+                    placesRollerEl.classList.remove('rolling');
+                    const progress = (i + 1) / steps;
+                    await placesSleep(65 + (1 - Math.pow(1 - progress, 2)) * 125);
+                }
+                placesChosen = target;
+                placesRenderRoller();
+                await placesSleep(160);
+                placesRenderResult();
+            } finally {
+                placesSpinning = false;
+                placesSpinBtn.disabled = !placesItems.length;
+                placesSpinBtn.textContent = '✦  SPIN';
+                placesRenderRoller();
+            }
+        });
+        document.getElementById('placesPrev').addEventListener('click', () => placesMoveBrowse(-1));
+        document.getElementById('placesNext').addEventListener('click', () => placesMoveBrowse(1));
+        let placesPointerStartX = null;
+        placesDeckEl.addEventListener('pointerdown', event => {
+            if (event.target.closest('a')) return;
+            placesPointerStartX = event.clientX;
+            if (placesDeckEl.setPointerCapture) placesDeckEl.setPointerCapture(event.pointerId);
+        });
+        placesDeckEl.addEventListener('pointerup', event => {
+            if (placesPointerStartX === null) return;
+            const delta = event.clientX - placesPointerStartX;
+            placesPointerStartX = null;
+            if (Math.abs(delta) > 35) placesMoveBrowse(delta < 0 ? 1 : -1);
+        });
+        placesDeckEl.addEventListener('pointercancel', () => { placesPointerStartX = null; });
+
+        document.getElementById('placesPhoto').addEventListener('change', event => {
+            const file = event.target.files && event.target.files[0];
+            placesPhotoFile = file || null;
+            if (placesPreviewUrl) URL.revokeObjectURL(placesPreviewUrl);
+            placesPreviewUrl = null;
+            const preview = document.getElementById('placesPhotoPreview');
+            if (!file) { preview.removeAttribute('src'); preview.style.display = 'none'; return; }
+            if (!file.type || !file.type.startsWith('image/')) {
+                placesPhotoFile = null;
+                event.target.value = '';
+                placesStatusEl.textContent = 'Please choose an image file.';
+                return;
+            }
+            if (file.size > 25 * 1024 * 1024) {
+                placesPhotoFile = null;
+                event.target.value = '';
+                placesStatusEl.textContent = 'That photo is over 25MB. Please choose a smaller image.';
+                return;
+            }
+            placesPreviewUrl = URL.createObjectURL(file);
+            preview.src = placesPreviewUrl;
+            preview.style.display = 'block';
+            placesStatusEl.textContent = 'Photo ready to upload.';
+        });
+        document.getElementById('placesOpenMaps').addEventListener('click', () => {
+            const name = document.getElementById('placesName').value.trim();
+            if (!name) {
+                placesStatusEl.textContent = 'Enter the place name first, then open Google Maps.';
+                document.getElementById('placesName').focus();
+                return;
+            }
+            window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(name), '_blank', 'noopener,noreferrer');
+        });
+        placesFormEl.addEventListener('submit', async event => {
+            event.preventDefault();
+            const name = document.getElementById('placesName').value.trim();
+            const memory = document.getElementById('placesMemory').value.trim();
+            const locationLink = document.getElementById('placesLocation').value.trim();
+            if (!name) return;
+            if (locationLink) {
+                const safeMap = safeUrl(locationLink);
+                let host = '';
+                try { host = new URL(safeMap || '').hostname.toLowerCase(); } catch (e) { host = ''; }
+                if (!safeMap || !(host === 'google.com' || host.endsWith('.google.com') || host === 'goo.gl' || host.endsWith('.goo.gl'))) {
+                    placesStatusEl.textContent = 'Please paste a valid Google Maps share link (https://...).';
+                    return;
+                }
+            }
+            const saveButton = document.getElementById('placesSaveBtn');
+            saveButton.disabled = true;
+            placesStatusEl.textContent = placesPhotoFile ? 'Uploading your photo...' : 'Saving your place...';
+            try {
+                let uploadedPhoto = '';
+                if (placesPhotoFile) {
+                    const uploaded = await uploadMedia(placesPhotoFile, 'our_places');
+                    uploadedPhoto = uploaded && uploaded.src ? uploaded.src : '';
+                    if (!uploadedPhoto) throw new Error('The photo upload did not return an image URL.');
+                }
+                const role = localStorage.getItem('ylRole') || 'Shared';
+                await addDoc(placesCollection, {
+                    name: name,
+                    memory: memory,
+                    locationLink: locationLink,
+                    photo: uploadedPhoto,
+                    createdBy: role,
+                    createdAt: new Date().toISOString()
+                });
+                placesFormEl.reset();
+                placesPhotoFile = null;
+                if (placesPreviewUrl) URL.revokeObjectURL(placesPreviewUrl);
+                placesPreviewUrl = null;
+                const preview = document.getElementById('placesPhotoPreview');
+                preview.removeAttribute('src');
+                preview.style.display = 'none';
+                placesStatusEl.textContent = 'Place saved to your shared collection ♡';
+                placesSetView('spin');
+            } catch (error) {
+                console.error('[our places] save failed', error);
+                placesStatusEl.textContent = 'Could not save this place: ' + (error && error.message ? error.message : 'Please try again.');
+            } finally {
+                saveButton.disabled = false;
+            }
+        });
+
+        listen(placesCollection, 'our places', snapshot => {
+            placesItems = snapshot.docs.map(item => ({ id: item.id, ...item.data() }));
+            placesItems.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+            if (placesChosen >= placesItems.length) placesChosen = Math.max(0, placesItems.length - 1);
+            if (placesBrowseIndex >= placesItems.length) placesBrowseIndex = Math.max(0, placesItems.length - 1);
+            placesRenderRoller();
+            placesRenderBrowse();
+            if (!placesItems.length) placesStatusEl.textContent = 'Your shared collection is ready for its first place ♡';
+        });
+
         window.watchNotifications();
     </script>
 
@@ -3092,6 +3576,16 @@
 
         drawSnakeFromState(buildInitialSnakeState(null));
     </script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('./sw.js', { scope: './' })
+                    .catch(function (error) { console.warn('[PWA] Service worker registration failed:', error); });
+            });
+        }
+    </script>
+
 </body>
 
 </html>
