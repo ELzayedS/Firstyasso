@@ -1594,16 +1594,7 @@
     </div>
     <button id="authSignOut" type="button">Sign out</button>
 
-    <!-- Password Lock Screen -->
-    <div class="pass-gate" id="passGate">
-        <div class="pass-box">
-            <h2>Enter Password 🔑</h2>
-            <p>Hint: Our Anniversary (day + month + year, no leading zeros)</p>
-            <input type="password" id="passInput" class="pass-input" placeholder="••••••••" maxlength="8">
-            <button class="btn primary" id="passBtn" style="width:100%; padding: 12px;">Enter Our World</button>
-            <div class="pass-error" id="passErr">Wrong password, try again! ❤️</div>
-        </div>
-    </div>
+
 
     <!-- Notification Bell (shared across every section) -->
     <div class="notif-bell" id="notifBell" title="Notifications">
@@ -2076,32 +2067,6 @@
         </div>
     </div>
 
-    <!-- Password Lock Logic Script -->
-    <script>
-        const passGate = document.getElementById('passGate');
-        const passInput = document.getElementById('passInput');
-        const passBtn = document.getElementById('passBtn');
-        const passErr = document.getElementById('passErr');
-
-        // Fast password unlock
-        if (localStorage.getItem('yl_unlocked') === 'true') {
-            passGate.style.display = 'none';
-        }
-
-        function checkPass() {
-            if (passInput.value === '2912026') {
-                localStorage.setItem('yl_unlocked', 'true');
-                passGate.style.display = 'none';
-            } else {
-                passErr.style.display = 'block';
-            }
-        }
-
-        passBtn.onclick = checkPass;
-        passInput.addEventListener('keypress', e => { if (e.key === 'Enter') checkPass(); });
-    </script>
-
-
     <script type="module">
       import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
       import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, signOut, reload } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -2133,7 +2098,6 @@
         const role = allowed[user.email.toLowerCase()];
         localStorage.setItem("ylRole",role);
         localStorage.setItem("yl_unlocked","true");
-        document.getElementById("passGate").style.display="none";
         gate.hidden=true;
         document.getElementById("authSignOut").style.display="block";
         if(window.watchNotifications) window.watchNotifications();
@@ -2210,7 +2174,7 @@
 
     <!-- Firebase & ImgBB Upload Logic (With Image Compression for Speed) -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, setDoc, updateDoc, getDoc, query, where, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
@@ -2225,7 +2189,7 @@
             appId: "1:885789879803:web:039d0bee8db543bc3f2f5e"
         };
 
-        const app = initializeApp(firebaseConfig);
+        const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const storage = getStorage(app);
         // Fail fast instead of retrying silently for 10 minutes when Storage is misconfigured.
