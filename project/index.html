@@ -1554,10 +1554,45 @@
             -webkit-backdrop-filter: blur(8px);
         }
 
+
+        /* Firebase account gate — never rely on the old shared passcode for identity. */
+        #authGate { position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(13,8,11,.97); }
+        #authGate[hidden] { display:none!important; }
+        .auth-card { width:min(100%,420px); padding:30px 25px; border:1px solid rgba(228,201,160,.3); border-radius:24px; background:linear-gradient(145deg,#27191f,#150e13); box-shadow:0 25px 80px #0009; text-align:center; }
+        .auth-card h2 { color:var(--cream); margin:0 0 8px; font:30px Georgia,serif; }
+        .auth-card p { color:var(--muted); font:13px/1.6 Arial,sans-serif; }
+        .auth-card input { box-sizing:border-box; width:100%; padding:13px 15px; margin:8px 0; border-radius:12px; background:#100b0e; color:var(--cream); border:1px solid rgba(228,201,160,.25); font:14px Arial,sans-serif; }
+        .auth-card button { cursor:pointer; border-radius:12px; border:1px solid rgba(228,201,160,.4); background:#b98791; color:#180d11; padding:12px 16px; margin:6px 3px; font-weight:bold; }
+        .auth-card button.secondary { background:transparent; color:var(--cream); }
+        #authMessage { min-height:20px; color:var(--champ); }
+        #authSignOut { position:fixed; bottom:12px; right:12px; z-index:80; padding:7px 12px; font:11px Arial,sans-serif; color:var(--cream); border:1px solid var(--line); border-radius:20px; background:#24171d; cursor:pointer; display:none; }
+
     </style>
 </head>
 
 <body>
+
+
+    <div id="authGate" role="dialog" aria-modal="true" aria-label="Private account login">
+      <div class="auth-card">
+        <h2>Our Little World ♡</h2>
+        <p>Only Yassin and Lara can enter. Sign in with your own email and password.</p>
+        <form id="authForm">
+          <input id="authEmail" type="email" autocomplete="username" placeholder="Your email" required>
+          <input id="authPassword" type="password" autocomplete="current-password" minlength="8" placeholder="Your password (8+ characters)" required>
+          <button id="authLogin" type="submit">Sign in ♡</button>
+          <button id="authRegister" type="button" class="secondary">Create my account</button>
+        </form>
+        <div id="authMessage" role="status" aria-live="polite"></div>
+        <div id="authVerifyActions" hidden>
+          <p>Check your email and click the verification link, then return here.</p>
+          <button id="authRefresh" type="button">I've verified my email</button>
+          <button id="authResend" type="button" class="secondary">Resend email</button>
+          <button id="authCancel" type="button" class="secondary">Use another account</button>
+        </div>
+      </div>
+    </div>
+    <button id="authSignOut" type="button">Sign out</button>
 
     <!-- Password Lock Screen -->
     <div class="pass-gate" id="passGate">
@@ -2064,6 +2099,113 @@
 
         passBtn.onclick = checkPass;
         passInput.addEventListener('keypress', e => { if (e.key === 'Enter') checkPass(); });
+    </script>
+
+
+    <script type="module">
+      import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+      import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, signOut, reload } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      const config = {
+        apiKey:"AIzaSyD9IttO0llpQ2TYjDAppTlAPLmQq7btwgQ",
+        authDomain:"lara-s-site.firebaseapp.com", projectId:"lara-s-site",
+        storageBucket:"lara-s-site.firebasestorage.app",
+        messagingSenderId:"885789879803",
+        appId:"1:885789879803:web:039d0bee8db543bc3f2f5e"
+      };
+      const auth = getAuth(getApps().length ? getApp() : initializeApp(config));
+      const allowed = Object.freeze({
+        "yzaid6800@gmail.com":"Yassin",
+        "laraesam2007@gmail.com":"Lara"
+      });
+      const gate = document.getElementById("authGate");
+      const msg = document.getElementById("authMessage");
+      const verifyActions = document.getElementById("authVerifyActions");
+      const emailInput = document.getElementById("authEmail");
+      const passInputAuth = document.getElementById("authPassword");
+      const status = t => { msg.textContent=t; };
+      const permitted = user => user && user.emailVerified && !!allowed[(user.email||"").toLowerCase()];
+      const showPending = user => {
+        gate.hidden = false;
+        verifyActions.hidden = !user || user.emailVerified;
+        if (user && !user.emailVerified) status("Verify your email before entering. Check Inbox and Spam.");
+      };
+      function unlock(user) {
+        const role = allowed[user.email.toLowerCase()];
+        localStorage.setItem("ylRole",role);
+        localStorage.setItem("yl_unlocked","true");
+        document.getElementById("passGate").style.display="none";
+        gate.hidden=true;
+        document.getElementById("authSignOut").style.display="block";
+        if(window.watchNotifications) window.watchNotifications();
+      }
+      onAuthStateChanged(auth, async user => {
+        if (permitted(user)) { unlock(user); return; }
+        localStorage.removeItem("ylRole");
+        localStorage.removeItem("yl_unlocked");
+        gate.hidden=false;
+        document.getElementById("authSignOut").style.display="none";
+        if(user && !allowed[(user.email||"").toLowerCase()]) {
+          status("This account is not invited to Our Little World.");
+          await signOut(auth);
+          return;
+        }
+        showPending(user);
+      });
+      async function run(action) {
+        status("Please wait…");
+        try { await action(); }
+        catch(e) {
+          console.error("[auth]",e);
+          status(e.code === "auth/email-already-in-use" ? "Account already exists. Please sign in." :
+            e.code === "auth/invalid-credential" ? "Incorrect email or password." :
+            e.code === "auth/weak-password" ? "Choose a stronger password." :
+            "Could not continue: " + (e.message||"Try again."));
+        }
+      }
+      function credentials() {
+        const email=emailInput.value.trim().toLowerCase();
+        if(!allowed[email]) throw new Error("Only the two invited email addresses can register.");
+        if(passInputAuth.value.length<8) throw new Error("Password must have at least 8 characters.");
+        return [email,passInputAuth.value];
+      }
+      document.getElementById("authForm").addEventListener("submit",e=>{
+        e.preventDefault();
+        run(async()=>{
+          const [email,password]=credentials();
+          const result=await signInWithEmailAndPassword(auth,email,password);
+          if(permitted(result.user)) { unlock(result.user); location.reload(); }
+          else showPending(result.user);
+        });
+      });
+      document.getElementById("authRegister").onclick=()=>run(async()=>{
+        const [email,password]=credentials();
+        const result=await createUserWithEmailAndPassword(auth,email,password);
+        await sendEmailVerification(result.user);
+        showPending(result.user);
+        status("Verification email sent. Open it before signing in.");
+      });
+      document.getElementById("authRefresh").onclick=()=>run(async()=>{
+        if(!auth.currentUser) throw new Error("Sign in again first.");
+        await reload(auth.currentUser);
+        if(permitted(auth.currentUser)) { unlock(auth.currentUser); location.reload(); }
+        else showPending(auth.currentUser);
+      });
+      document.getElementById("authResend").onclick=()=>run(async()=>{
+        if(!auth.currentUser) throw new Error("Sign in again first.");
+        await sendEmailVerification(auth.currentUser);
+        status("Verification email sent again.");
+      });
+      document.getElementById("authCancel").onclick=()=>run(async()=>{
+        await signOut(auth);
+        verifyActions.hidden=true;
+        status("You can sign in with another account.");
+      });
+      document.getElementById("authSignOut").onclick=()=>run(async()=>{
+        await signOut(auth);
+        location.reload();
+      });
+      // Role selection is derived from a verified Firebase account, never a self-chosen name.
+      window.ylAuthenticatedRole=()=>permitted(auth.currentUser) ? allowed[auth.currentUser.email.toLowerCase()] : null;
     </script>
 
     <!-- Firebase & ImgBB Upload Logic (With Image Compression for Speed) -->
@@ -3286,12 +3428,15 @@
             catch (e) { console.error(label + ' failed', e); alert(label + ' failed. Check your connection and try again.'); }
         }
         function requireRole(action) {
-            if (myRole) return runAction(action);
+            const verifiedRole = window.ylAuthenticatedRole && window.ylAuthenticatedRole();
+            if (verifiedRole) { myRole = verifiedRole; return runAction(action); }
             pendingAction = action;
             rolePicker.classList.add('open');
         }
         function chooseRole(name) {
-            myRole = name;
+            const verifiedRole = window.ylAuthenticatedRole && window.ylAuthenticatedRole();
+            if (!verifiedRole || name !== verifiedRole) { rolePicker.classList.remove('open'); return; }
+            myRole = verifiedRole;
             localStorage.setItem('ylRole', name);
             rolePicker.classList.remove('open');
             if (window.watchNotifications) window.watchNotifications();   // start notifications right after picking
