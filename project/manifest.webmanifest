@@ -1,0 +1,14 @@
+{
+  "id": "./",
+  "name": "Y&L — Our Little World",
+  "short_name": "Y&L",
+  "description": "A little place for our memories, our moments, and everything that makes us us.",
+  "lang": "en",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0d080b",
+  "theme_color": "#0d080b",
+  "icons": [{"src":"./icons/yl-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
