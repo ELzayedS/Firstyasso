@@ -2180,7 +2180,7 @@
         run(async()=>{
           const [email,password]=credentials();
           const result=await signInWithEmailAndPassword(auth,email,password);
-          if(permitted(result.user)) { unlock(result.user); location.reload(); }
+          if(permitted(result.user)) { unlock(result.user); }
           else showPending(result.user);
         });
       });
@@ -2194,7 +2194,7 @@
       document.getElementById("authRefresh").onclick=()=>run(async()=>{
         if(!auth.currentUser) throw new Error("Sign in again first.");
         await reload(auth.currentUser);
-        if(permitted(auth.currentUser)) { unlock(auth.currentUser); location.reload(); }
+        if(permitted(auth.currentUser)) { unlock(auth.currentUser); }
         else showPending(auth.currentUser);
       });
       document.getElementById("authResend").onclick=()=>run(async()=>{
