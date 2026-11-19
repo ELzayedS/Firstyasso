@@ -3905,7 +3905,7 @@
 
 
     <script type="module">
-      import { getAuth } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
       import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
       const appAuth=getAuth(), db=getFirestore();
       const panel=document.getElementById('yl-feature-panel');
@@ -4036,25 +4036,49 @@
       window.addEventListener('beforeunload',()=>{if(pc)pc.close();if(localStream)localStream.getTracks().forEach(t=>t.stop());});
       let locationWatch=null, locationUnsub=null;
       const locationStatus=document.getElementById('yl-location-status');
-      async function startLocation(){
+      const locationPreferenceKey=()=>role()?'yl_location_sharing_'+role():null;
+      function setLocationButtons(active){
+        document.getElementById('yl-location-start').disabled=active;
+        document.getElementById('yl-location-stop').disabled=!active;
+      }
+      async function startLocation(resume=false){
+        if(locationWatch!==null)return;
         if(!navigator.geolocation){locationStatus.textContent='Geolocation is not supported by this browser.';return;}
-        if(!appAuth.currentUser){locationStatus.textContent='Please sign in first.';return;}
-        locationStatus.textContent='Waiting for location permission…';
+        if(!appAuth.currentUser||!role()){locationStatus.textContent='Please sign in first.';return;}
+        if(!resume){
+          try{localStorage.setItem(locationPreferenceKey(),'on');}catch(e){}
+        }
+        locationStatus.textContent=resume?'Resuming your location sharing…':'Waiting for location permission…';
+        setLocationButtons(true);
         locationWatch=navigator.geolocation.watchPosition(async pos=>{
-          const payload={role:role(),latitude:pos.coords.latitude,longitude:pos.coords.longitude,accuracy:Math.round(pos.coords.accuracy),updatedAt:serverTimestamp(),sharing:true};
-          try{await setDoc(doc(db,'live_locations',role()),payload,{merge:true});locationStatus.textContent='Sharing live location. Accuracy about '+payload.accuracy+' m.';}
+          const currentRole=role();
+          if(!currentRole)return;
+          const payload={role:currentRole,latitude:pos.coords.latitude,longitude:pos.coords.longitude,accuracy:Math.round(pos.coords.accuracy),updatedAt:serverTimestamp(),sharing:true};
+          try{await setDoc(doc(db,'live_locations',currentRole),payload,{merge:true});locationStatus.textContent='Location sharing is on until you stop it. Accuracy about '+payload.accuracy+' m.';}
           catch(e){locationStatus.textContent='Could not share: '+e.message;}
-        },err=>{locationStatus.textContent='Location error: '+err.message;stopLocation(true);},{enableHighAccuracy:true,maximumAge:10000,timeout:20000});
-        document.getElementById('yl-location-start').disabled=true;
-        document.getElementById('yl-location-stop').disabled=false;
+        },err=>{
+          locationStatus.textContent='Location unavailable: '+err.message+'. Sharing was paused; tap Start to try again.';
+          if(locationWatch!==null){navigator.geolocation.clearWatch(locationWatch);locationWatch=null;}
+          try{localStorage.removeItem(locationPreferenceKey());}catch(e){}
+          setLocationButtons(false);
+          if(role())setDoc(doc(db,'live_locations',role()),{role:role(),sharing:false,updatedAt:serverTimestamp()},{merge:true}).catch(console.warn);
+        },{enableHighAccuracy:true,maximumAge:10000,timeout:20000});
       }
       async function stopLocation(clear=true){
         if(locationWatch!==null){navigator.geolocation.clearWatch(locationWatch);locationWatch=null;}
-        document.getElementById('yl-location-start').disabled=false;
-        document.getElementById('yl-location-stop').disabled=true;
+        try{if(locationPreferenceKey())localStorage.removeItem(locationPreferenceKey());}catch(e){}
+        setLocationButtons(false);
         if(clear&&role())await setDoc(doc(db,'live_locations',role()),{role:role(),sharing:false,updatedAt:serverTimestamp()},{merge:true}).catch(console.warn);
         locationStatus.textContent='Location sharing is off.';
       }
+      // A one-time opt-in survives reloads. When this signed-in device opens Y&L again,
+      // location updates resume automatically until the user explicitly stops sharing.
+      onAuthStateChanged(appAuth,user=>{
+        if(!user||!role())return;
+        let optedIn=false;
+        try{optedIn=localStorage.getItem(locationPreferenceKey())==='on';}catch(e){}
+        if(optedIn)startLocation(true);
+      });
       function watchPartnerLocation(){
         if(locationUnsub)return;
         locationUnsub=onSnapshot(doc(db,'live_locations',partner()),snap=>{
