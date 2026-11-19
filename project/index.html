@@ -3917,7 +3917,7 @@
       const role=()=>localStorage.getItem('ylRole');
       const partner=()=>role()==='Yassin'?'Lara':'Yassin';
       const statusCall=document.getElementById('yl-call-status');
-      let pc=null, localStream=null, activeRoom=null, candidateUnsubs=[], incomingUnsub=null, incomingRoom=null;
+      let pc=null, localStream=null, activeRoom=null, candidateUnsubs=[], incomingUnsub=null, incomingRoom=null, pendingRemoteCandidates=[], remoteDescriptionReady=false;
       const callVideo=document.getElementById('yl-call-video'), callAudio=document.getElementById('yl-call-audio-out');
       function showFeature(which){
         if(!role() || !appAuth.currentUser){ alert('Please sign in first.'); return; }
@@ -3932,8 +3932,20 @@
         e.preventDefault(); showFeature(card.dataset.coming==='Calling'?'calls':'future');
       }));
       function cleanupCandidates(){candidateUnsubs.forEach(fn=>fn());candidateUnsubs=[];}
+      async function receiveRemoteCandidate(data){
+        if(!pc)return;
+        const candidate=new RTCIceCandidate(data);
+        if(!remoteDescriptionReady || !pc.remoteDescription){pendingRemoteCandidates.push(candidate);return;}
+        await pc.addIceCandidate(candidate).catch(err=>console.warn('[calls] ICE candidate rejected',err));
+      }
+      async function flushRemoteCandidates(){
+        remoteDescriptionReady=true;
+        const queued=pendingRemoteCandidates.splice(0);
+        for(const candidate of queued){if(!pc)break;await pc.addIceCandidate(candidate).catch(err=>console.warn('[calls] queued ICE candidate rejected',err));}
+      }
       async function endCall(update=true){
         cleanupCandidates();
+        pendingRemoteCandidates=[];remoteDescriptionReady=false;
         if(pc){pc.ontrack=null;pc.onicecandidate=null;pc.close();pc=null;}
         if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null;}
         callVideo.srcObject=null;callVideo.style.display='none';callAudio.srcObject=null;
@@ -3969,10 +3981,10 @@
           localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
           const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
           await setDoc(roomRef,{caller:role(),callee:partner(),type:video?'video':'audio',offer:{type:offer.type,sdp:offer.sdp},status:'ringing',createdAt:serverTimestamp()});
-          candidateUnsubs.push(onSnapshot(collection(db,'call_rooms',activeRoom,'calleeCandidates'),snap=>snap.docChanges().forEach(c=>{if(c.type==='added')pc&&pc.addIceCandidate(new RTCIceCandidate(c.doc.data())).catch(console.warn);})));
+          candidateUnsubs.push(onSnapshot(collection(db,'call_rooms',activeRoom,'calleeCandidates'),snap=>snap.docChanges().forEach(c=>{if(c.type==='added')receiveRemoteCandidate(c.doc.data());})));
           candidateUnsubs.push(onSnapshot(roomRef,snap=>{
             const data=snap.data(); if(!data)return;
-            if(data.answer&&pc&&pc.signalingState==='have-local-offer')pc.setRemoteDescription(new RTCSessionDescription(data.answer)).catch(console.warn);
+            if(data.answer&&pc&&pc.signalingState==='have-local-offer')pc.setRemoteDescription(new RTCSessionDescription(data.answer)).then(flushRemoteCandidates).catch(console.warn);
             if(data.status==='ended'){endCall(false);}
           }));
           document.getElementById('yl-call-hangup').disabled=false;
@@ -4000,6 +4012,7 @@
           pc=attachPeer(roomId,false,video);
           localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
           await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+          await flushRemoteCandidates();
           const answer=await pc.createAnswer();await pc.setLocalDescription(answer);
           await updateDoc(roomRef,{answer:{type:answer.type,sdp:answer.sdp},status:'connected'});
           candidateUnsubs.push(onSnapshot(collection(db,'call_rooms',roomId,'callerCandidates'),ss=>ss.docChanges().forEach(c=>{if(c.type==='added')pc&&pc.addIceCandidate(new RTCIceCandidate(c.doc.data())).catch(console.warn);})));
@@ -4024,7 +4037,7 @@
           const payload={role:role(),latitude:pos.coords.latitude,longitude:pos.coords.longitude,accuracy:Math.round(pos.coords.accuracy),updatedAt:serverTimestamp(),sharing:true};
           try{await setDoc(doc(db,'live_locations',role()),payload,{merge:true});locationStatus.textContent='Sharing live location. Accuracy about '+payload.accuracy+' m.';}
           catch(e){locationStatus.textContent='Could not share: '+e.message;}
-        },err=>{locationStatus.textContent='Location error: '+err.message;stopLocation(false);},{enableHighAccuracy:true,maximumAge:10000,timeout:20000});
+        },err=>{locationStatus.textContent='Location error: '+err.message;stopLocation(true);},{enableHighAccuracy:true,maximumAge:10000,timeout:20000});
         document.getElementById('yl-location-start').disabled=true;
         document.getElementById('yl-location-stop').disabled=false;
       }
