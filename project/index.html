@@ -3989,8 +3989,10 @@
           candidateUnsubs.push(onSnapshot(roomRef,snap=>{
             const data=snap.data(); if(!data)return;
             if(data.answer&&pc&&pc.signalingState==='have-local-offer')pc.setRemoteDescription(new RTCSessionDescription(data.answer)).then(flushRemoteCandidates).catch(console.warn);
-            if(data.status==='ended'){endCall(false);}
+            if(data.status==='ended'||data.status==='declined'){endCall(false);if(data.status==='declined')statusCall.textContent='Your call was declined.';}
           }));
+          document.getElementById('yl-call-mute').hidden=false;
+          document.getElementById('yl-call-camera').hidden=!video;
           document.getElementById('yl-call-hangup').disabled=false;
           statusCall.textContent='Calling '+partner()+'… Waiting for answer.';
         }catch(e){statusCall.textContent='Could not start call: '+(e.message||e);await endCall(false);}
