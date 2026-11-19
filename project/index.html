@@ -2088,7 +2088,7 @@
           <p class="yl-feature-muted">Start a private voice or video call with the other signed-in person. Keep this page open while calling.</p>
           <div class="yl-feature-actions">
             <button id="yl-call-audio">☎ Voice call</button><button id="yl-call-video-start">▣ Video call</button>
-            <button id="yl-call-answer" hidden>Answer incoming call</button><button id="yl-call-hangup" disabled>End call</button>
+            <button id="yl-call-answer" hidden>Answer incoming call</button><button id="yl-call-reject" hidden>Decline</button><button id="yl-call-mute" hidden>Mute microphone</button><button id="yl-call-camera" hidden>Turn camera off</button><button id="yl-call-hangup" disabled>End call</button>
           </div>
           <video id="yl-call-video" autoplay playsinline></video>
           <audio id="yl-call-audio-out" autoplay></audio>
@@ -3917,7 +3917,7 @@
       const role=()=>localStorage.getItem('ylRole');
       const partner=()=>role()==='Yassin'?'Lara':'Yassin';
       const statusCall=document.getElementById('yl-call-status');
-      let pc=null, localStream=null, activeRoom=null, candidateUnsubs=[], incomingUnsub=null, incomingRoom=null, pendingRemoteCandidates=[], remoteDescriptionReady=false;
+      let pc=null, localStream=null, activeRoom=null, candidateUnsubs=[], incomingUnsub=null, incomingRoom=null, pendingRemoteCandidates=[], remoteDescriptionReady=false, micMuted=false, cameraDisabled=false;
       const callVideo=document.getElementById('yl-call-video'), callAudio=document.getElementById('yl-call-audio-out');
       function showFeature(which){
         if(!role() || !appAuth.currentUser){ alert('Please sign in first.'); return; }
@@ -3953,6 +3953,10 @@
         activeRoom=null;incomingRoom=null;
         document.getElementById('yl-call-hangup').disabled=true;
         document.getElementById('yl-call-answer').hidden=true;
+        document.getElementById('yl-call-reject').hidden=true;
+        document.getElementById('yl-call-mute').hidden=true;
+        document.getElementById('yl-call-camera').hidden=true;
+        micMuted=false;cameraDisabled=false;
         statusCall.textContent='Call ended.';
       }
       function attachPeer(roomId,initiator,video){
@@ -3996,8 +4000,8 @@
         incomingUnsub=onSnapshot(query(collection(db,'call_rooms'),where('callee','==',role()),where('status','==','ringing')),snap=>{
           const docSnap=snap.docs.find(d=>d.id!==activeRoom);
           const answerBtn=document.getElementById('yl-call-answer');
-          if(docSnap){incomingRoom=docSnap.id;answerBtn.hidden=false;statusCall.textContent='Incoming '+docSnap.data().type+' call from '+docSnap.data().caller+'!';}
-          else if(!activeRoom){answerBtn.hidden=true;}
+          if(docSnap){incomingRoom=docSnap.id;answerBtn.hidden=false;document.getElementById('yl-call-reject').hidden=false;statusCall.textContent='Incoming '+docSnap.data().type+' call from '+docSnap.data().caller+'!';}
+          else if(!activeRoom){incomingRoom=null;answerBtn.hidden=true;document.getElementById('yl-call-reject').hidden=true;}
         },e=>statusCall.textContent='Incoming-call listener: '+e.message);
       }
       async function answerCall(){
@@ -4015,9 +4019,12 @@
           await flushRemoteCandidates();
           const answer=await pc.createAnswer();await pc.setLocalDescription(answer);
           await updateDoc(roomRef,{answer:{type:answer.type,sdp:answer.sdp},status:'connected'});
-          candidateUnsubs.push(onSnapshot(collection(db,'call_rooms',roomId,'callerCandidates'),ss=>ss.docChanges().forEach(c=>{if(c.type==='added')pc&&pc.addIceCandidate(new RTCIceCandidate(c.doc.data())).catch(console.warn);})));
+          candidateUnsubs.push(onSnapshot(collection(db,'call_rooms',roomId,'callerCandidates'),ss=>ss.docChanges().forEach(c=>{if(c.type==='added')receiveRemoteCandidate(c.doc.data());})));
           candidateUnsubs.push(onSnapshot(roomRef,ss=>{if(ss.data()?.status==='ended')endCall(false);}));
           document.getElementById('yl-call-answer').hidden=true;
+          document.getElementById('yl-call-reject').hidden=true;
+          document.getElementById('yl-call-mute').hidden=false;
+          document.getElementById('yl-call-camera').hidden=!video;
           document.getElementById('yl-call-hangup').disabled=false;
           statusCall.textContent='Connected with '+data.caller+'.';
         }catch(e){statusCall.textContent='Could not answer: '+(e.message||e);await endCall(false);}
@@ -4025,6 +4032,9 @@
       document.getElementById('yl-call-audio').onclick=()=>startCall(false);
       document.getElementById('yl-call-video-start').onclick=()=>startCall(true);
       document.getElementById('yl-call-answer').onclick=answerCall;
+      document.getElementById('yl-call-reject').onclick=async()=>{if(!incomingRoom)return;const id=incomingRoom;incomingRoom=null;await updateDoc(doc(db,'call_rooms',id),{status:'declined',endedAt:serverTimestamp()}).catch(e=>statusCall.textContent='Could not decline call: '+e.message);document.getElementById('yl-call-answer').hidden=true;document.getElementById('yl-call-reject').hidden=true;statusCall.textContent='Incoming call declined.';};
+      document.getElementById('yl-call-mute').onclick=()=>{if(!localStream)return;micMuted=!micMuted;localStream.getAudioTracks().forEach(t=>t.enabled=!micMuted);document.getElementById('yl-call-mute').textContent=micMuted?'Unmute microphone':'Mute microphone';};
+      document.getElementById('yl-call-camera').onclick=()=>{if(!localStream)return;cameraDisabled=!cameraDisabled;localStream.getVideoTracks().forEach(t=>t.enabled=!cameraDisabled);document.getElementById('yl-call-camera').textContent=cameraDisabled?'Turn camera on':'Turn camera off';};
       document.getElementById('yl-call-hangup').onclick=()=>endCall(true);
       window.addEventListener('beforeunload',()=>{if(pc)pc.close();if(localStream)localStream.getTracks().forEach(t=>t.stop());});
       let locationWatch=null, locationUnsub=null;
