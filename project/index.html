@@ -2054,13 +2054,13 @@
                     <div class="menu-name">Our Places</div>
                     <div class="menu-desc">The places that hold our memories.</div>
                 </a>
-                <a class="menu-card" data-coming="Secrets">
+                <a class="menu-card" data-coming="Calling">
                     <div class="menu-icon">🔐</div>
-                    <div class="menu-name">Secrets</div>
+                    <div class="menu-name">Calling</div>
                 </a>
-                <a class="menu-card" data-coming="Future Us">
+                <a class="menu-card" data-coming="Live Location">
                     <div class="menu-icon">🫶</div>
-                    <div class="menu-name">Future Us</div>
+                    <div class="menu-name">Live Location</div>
                 </a>
             </div>
             <button class="menu-close" id="menuClose">← Back to Home</button>
@@ -2088,14 +2088,14 @@
           <p class="yl-feature-muted">Start a private voice or video call with the other signed-in person. Keep this page open while calling.</p>
           <div class="yl-feature-actions">
             <button id="yl-call-audio">☎ Voice call</button><button id="yl-call-video-start">▣ Video call</button>
-            <button id="yl-call-answer" hidden>Answer incoming call</button><button id="yl-call-hangup" disabled>End call</button>
+            <button id="yl-call-answer" hidden>Answer incoming call</button><button id="yl-call-reject" hidden>Decline</button><button id="yl-call-enable-sound" hidden>Enable call sound</button><button id="yl-call-mute" hidden>Mute microphone</button><button id="yl-call-camera" hidden>Turn camera off</button><button id="yl-call-hangup" disabled>End call</button>
           </div>
-          <video id="yl-call-video" autoplay playsinline></video>
-          <audio id="yl-call-audio-out" autoplay></audio>
+          <video id="yl-call-video" autoplay playsinline muted></video>
+          <audio id="yl-call-audio-out" autoplay playsinline></audio>
           <div id="yl-call-status" role="status">Ready when you are.</div>
         </section>
         <section id="yl-future-view" hidden>
-          <h2>Future Us 🫶</h2>
+          <h2>Live Location 📍</h2>
           <p class="yl-feature-muted">Share your live location only when you choose. You can stop sharing any time.</p>
           <div class="yl-location-box">
             <strong>Your location</strong>
@@ -2143,16 +2143,12 @@
       };
       function unlock(user) {
         const role = allowed[user.email.toLowerCase()];
-        localStorage.setItem("ylRole",role);
-        localStorage.setItem("yl_unlocked","true");
         gate.hidden=true;
         document.getElementById("authSignOut").style.display="block";
         if(window.watchNotifications) window.watchNotifications();
       }
       onAuthStateChanged(auth, async user => {
         if (permitted(user)) { unlock(user); return; }
-        localStorage.removeItem("ylRole");
-        localStorage.removeItem("yl_unlocked");
         gate.hidden=false;
         document.getElementById("authSignOut").style.display="none";
         if(user && !allowed[(user.email||"").toLowerCase()]) {
@@ -2184,7 +2180,7 @@
         run(async()=>{
           const [email,password]=credentials();
           const result=await signInWithEmailAndPassword(auth,email,password);
-          if(permitted(result.user)) { unlock(result.user); location.reload(); }
+          if(permitted(result.user)) { unlock(result.user); }
           else showPending(result.user);
         });
       });
@@ -2198,7 +2194,7 @@
       document.getElementById("authRefresh").onclick=()=>run(async()=>{
         if(!auth.currentUser) throw new Error("Sign in again first.");
         await reload(auth.currentUser);
-        if(permitted(auth.currentUser)) { unlock(auth.currentUser); location.reload(); }
+        if(permitted(auth.currentUser)) { unlock(auth.currentUser); }
         else showPending(auth.currentUser);
       });
       document.getElementById("authResend").onclick=()=>run(async()=>{
@@ -2224,8 +2220,6 @@
         import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, setDoc, updateDoc, getDoc, query, where, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
-
-        const IMGBB_API_KEY = "6b57876c58dc4f87467a7ba875089396";
 
         const firebaseConfig = {
             apiKey: "AIzaSyD9IttO0llpQ2TYjDAppTlAPLmQq7btwgQ",
@@ -2301,19 +2295,16 @@
                 return await uploadFileToStorage(file, pathPrefix);
             }
             const compressed = await compressImage(file);
-            const formData = new FormData();
-            formData.append("image", compressed);
-
-            const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-                method: "POST",
-                body: formData
+            const res = await fetch('/api/upload-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'image/jpeg' },
+                body: compressed
             });
-            const data = await res.json();
-            if (data.success) {
-                return { src: data.data.url, type: 'image' };
-            } else {
-                throw new Error("Failed to upload image.");
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.url) {
+                throw new Error(data.error || 'Failed to upload image.');
             }
+            return { src: data.url, type: 'image' };
         }
 
         // Raw upload to Firebase Storage (videos + voice notes) with progress and readable errors.
@@ -2445,7 +2436,7 @@
         // like an Instagram post — so it's easy to notice something new is
         // waiting for a reply, even long after it was posted.
         document.getElementById('postTodayBtn').onclick = async () => {
-            const myRole = localStorage.getItem('ylRole');
+            const myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
             if (!myRole) { document.getElementById('rolePicker').classList.add('open'); return; }
 
             const caption = document.getElementById('todayCaption').value.trim();
@@ -2516,7 +2507,7 @@
                 const input = el.querySelector('.today-comment-input');
                 const commentBtn = el.querySelector('.today-comment-form .btn');
                 const submitComment = async () => {
-                    const myRole = localStorage.getItem('ylRole');
+                    const myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
                     if (!myRole) { document.getElementById('rolePicker').classList.add('open'); return; }
                     const text = input.value.trim();
                     if (!text) return;
@@ -2544,7 +2535,7 @@
         let editingStoryId = null;
 
         document.getElementById('saveStoryBtn').onclick = async () => {
-            const myRole = localStorage.getItem('ylRole');
+            const myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
             if (!myRole) { document.getElementById('rolePicker').classList.add('open'); return; }
             const btn = document.getElementById('saveStoryBtn');
             const dateVal = document.getElementById('storyDate').value;
@@ -2689,7 +2680,7 @@
         let editingMusicId = null;
 
         document.getElementById('saveMusicBtn').onclick = async () => {
-            const myRole = localStorage.getItem('ylRole');
+            const myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
             if (!myRole) { document.getElementById('rolePicker').classList.add('open'); return; }
             const title = document.getElementById('musicTitle').value.trim();
             const link = document.getElementById('musicLink').value.trim();
@@ -2863,7 +2854,7 @@
         };
 
         document.getElementById('sendLetterBtn').onclick = async () => {
-            const myRole = localStorage.getItem('ylRole');
+            const myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
             if (!myRole) {
                 document.getElementById('rolePicker').classList.add('open');
                 return;
@@ -3030,7 +3021,7 @@
         }
 
         window.notifyPartner = async function (section, message) {
-            const myRole = localStorage.getItem('ylRole');
+            const myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
             if (!myRole) {
                 document.getElementById('rolePicker').classList.add('open');
                 console.warn('[notifications] choose a role before creating shared activity');
@@ -3102,7 +3093,7 @@
         window._notifUnsub = null;
         // Safe to call again (e.g. after the role is picked or switched): it re-subscribes.
         window.watchNotifications = function () {
-            const myRole = localStorage.getItem('ylRole');
+            const myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
             if (!myRole) return;
             if (window._notifUnsub) { window._notifUnsub(); window._notifUnsub = null; }
             notifFirstLoad = true;
@@ -3309,7 +3300,7 @@
         });
         placesFormEl.addEventListener('submit', async event => {
             event.preventDefault();
-            const role = localStorage.getItem('ylRole');
+            const role = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
             if (!role) { document.getElementById('rolePicker').classList.add('open'); placesStatusEl.textContent = 'Choose who you are first, then save your place.'; return; }
             const name = document.getElementById('placesName').value.trim();
             const memory = document.getElementById('placesMemory').value.trim();
@@ -3429,7 +3420,7 @@
         import { doc, setDoc, updateDoc, getDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         const db = window.db;
 
-        let myRole = localStorage.getItem('ylRole');
+        let myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
         let pendingAction = null;
         const rolePicker = document.getElementById('rolePicker');
 
@@ -3448,7 +3439,6 @@
             const verifiedRole = window.ylAuthenticatedRole && window.ylAuthenticatedRole();
             if (!verifiedRole || name !== verifiedRole) { rolePicker.classList.remove('open'); return; }
             myRole = verifiedRole;
-            localStorage.setItem('ylRole', name);
             rolePicker.classList.remove('open');
             if (window.watchNotifications) window.watchNotifications();   // start notifications right after picking
             if (pendingAction) { const a = pendingAction; pendingAction = null; runAction(a); }
@@ -3910,14 +3900,14 @@
 
 
     <script type="module">
-      import { getAuth } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-      import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+      import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
       const appAuth=getAuth(), db=getFirestore();
       const panel=document.getElementById('yl-feature-panel');
-      const role=()=>localStorage.getItem('ylRole');
+      const role=()=>window.ylAuthenticatedRole ? window.ylAuthenticatedRole() : null;
       const partner=()=>role()==='Yassin'?'Lara':'Yassin';
       const statusCall=document.getElementById('yl-call-status');
-      let pc=null, localStream=null, activeRoom=null, candidateUnsubs=[], incomingUnsub=null, incomingRoom=null;
+      let pc=null, localStream=null, activeRoom=null, candidateUnsubs=[], incomingUnsub=null, incomingRoom=null, pendingRemoteCandidates=[], remoteDescriptionReady=false, micMuted=false, cameraDisabled=false;
       const callVideo=document.getElementById('yl-call-video'), callAudio=document.getElementById('yl-call-audio-out');
       function showFeature(which){
         if(!role() || !appAuth.currentUser){ alert('Please sign in first.'); return; }
@@ -3929,26 +3919,72 @@
       }
       document.getElementById('yl-feature-close').onclick=()=>{panel.classList.remove('open');panel.setAttribute('aria-hidden','true');};
       document.querySelectorAll('.menu-card[data-coming]').forEach(card=>card.addEventListener('click',e=>{
-        e.preventDefault(); showFeature(card.dataset.coming==='Secrets'?'calls':'future');
+        e.preventDefault(); showFeature(card.dataset.coming==='Calling'?'calls':'future');
       }));
       function cleanupCandidates(){candidateUnsubs.forEach(fn=>fn());candidateUnsubs=[];}
+      async function receiveRemoteCandidate(data){
+        if(!pc)return;
+        const candidate=new RTCIceCandidate(data);
+        if(!remoteDescriptionReady || !pc.remoteDescription){pendingRemoteCandidates.push(candidate);return;}
+        await pc.addIceCandidate(candidate).catch(err=>console.warn('[calls] ICE candidate rejected',err));
+      }
+      async function flushRemoteCandidates(){
+        remoteDescriptionReady=true;
+        const queued=pendingRemoteCandidates.splice(0);
+        for(const candidate of queued){if(!pc)break;await pc.addIceCandidate(candidate).catch(err=>console.warn('[calls] queued ICE candidate rejected',err));}
+      }
       async function endCall(update=true){
         cleanupCandidates();
+        pendingRemoteCandidates=[];remoteDescriptionReady=false;
         if(pc){pc.ontrack=null;pc.onicecandidate=null;pc.close();pc=null;}
         if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null;}
-        callVideo.srcObject=null;callVideo.style.display='none';callAudio.srcObject=null;
+        callVideo.srcObject=null;callVideo.style.display='none';callVideo.muted=true;callAudio.pause();callAudio.srcObject=null;document.getElementById('yl-call-enable-sound').hidden=true;
         if(update && activeRoom) await updateDoc(doc(db,'call_rooms',activeRoom),{status:'ended',endedAt:serverTimestamp()}).catch(()=>{});
         activeRoom=null;incomingRoom=null;
         document.getElementById('yl-call-hangup').disabled=true;
         document.getElementById('yl-call-answer').hidden=true;
+        document.getElementById('yl-call-reject').hidden=true;
+        document.getElementById('yl-call-mute').hidden=true;
+        document.getElementById('yl-call-camera').hidden=true;
+        micMuted=false;cameraDisabled=false;
         statusCall.textContent='Call ended.';
       }
+      async function playRemoteCallAudio(){
+        if(!callAudio.srcObject) return false;
+        try{
+          await callAudio.play();
+          document.getElementById('yl-call-enable-sound').hidden=true;
+          return true;
+        }catch(err){
+          document.getElementById('yl-call-enable-sound').hidden=false;
+          statusCall.textContent='Call connected. Tap “Enable call sound” to hear audio on this device.';
+          console.warn('[calls] Remote audio playback needs a user gesture:',err);
+          return false;
+        }
+      }
+      document.getElementById('yl-call-enable-sound').onclick=async()=>{
+        const played=await playRemoteCallAudio();
+        if(played) statusCall.textContent='Call audio enabled.';
+      };
       function attachPeer(roomId,initiator,video){
-        pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});
+        pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}],iceCandidatePoolSize:10,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require'});
         pc.ontrack=e=>{
           const stream=e.streams[0];
-          if(video){callVideo.srcObject=stream;callVideo.style.display='block';}
-          else callAudio.srcObject=stream;
+          // Route sound through a dedicated audio element. Muting the video element
+          // avoids duplicate audio and improves iOS Safari autoplay compatibility.
+          callAudio.srcObject=stream;
+          callAudio.playsInline=true;
+          if(video){
+            callVideo.srcObject=stream;
+            callVideo.muted=true;
+            callVideo.playsInline=true;
+            callVideo.style.display='block';
+            callVideo.play().catch(err=>console.warn('[calls] Remote video playback was blocked:',err));
+          }else{
+            callVideo.srcObject=null;
+            callVideo.style.display='none';
+          }
+          playRemoteCallAudio();
         };
         pc.onicecandidate=e=>{
           if(e.candidate){
@@ -3963,18 +3999,20 @@
           if(!appAuth.currentUser) throw new Error('Please sign in again.');
           await endCall(false);
           statusCall.textContent='Requesting microphone'+(video?' and camera':'')+' permission…';
-          localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:!!video});
+          localStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:video?{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:24,max:30}}:false});
           const roomRef=doc(collection(db,'call_rooms')); activeRoom=roomRef.id;
           pc=attachPeer(activeRoom,true,video);
           localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
           const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
           await setDoc(roomRef,{caller:role(),callee:partner(),type:video?'video':'audio',offer:{type:offer.type,sdp:offer.sdp},status:'ringing',createdAt:serverTimestamp()});
-          candidateUnsubs.push(onSnapshot(collection(db,'call_rooms',activeRoom,'calleeCandidates'),snap=>snap.docChanges().forEach(c=>{if(c.type==='added')pc&&pc.addIceCandidate(new RTCIceCandidate(c.doc.data())).catch(console.warn);})));
+          candidateUnsubs.push(onSnapshot(collection(db,'call_rooms',activeRoom,'calleeCandidates'),snap=>snap.docChanges().forEach(c=>{if(c.type==='added')receiveRemoteCandidate(c.doc.data());})));
           candidateUnsubs.push(onSnapshot(roomRef,snap=>{
             const data=snap.data(); if(!data)return;
-            if(data.answer&&pc&&pc.signalingState==='have-local-offer')pc.setRemoteDescription(new RTCSessionDescription(data.answer)).catch(console.warn);
-            if(data.status==='ended'){endCall(false);}
+            if(data.answer&&pc&&pc.signalingState==='have-local-offer')pc.setRemoteDescription(new RTCSessionDescription(data.answer)).then(flushRemoteCandidates).catch(console.warn);
+            if(data.status==='ended'||data.status==='declined'){endCall(false);if(data.status==='declined')statusCall.textContent='Your call was declined.';}
           }));
+          document.getElementById('yl-call-mute').hidden=false;
+          document.getElementById('yl-call-camera').hidden=!video;
           document.getElementById('yl-call-hangup').disabled=false;
           statusCall.textContent='Calling '+partner()+'… Waiting for answer.';
         }catch(e){statusCall.textContent='Could not start call: '+(e.message||e);await endCall(false);}
@@ -3984,8 +4022,8 @@
         incomingUnsub=onSnapshot(query(collection(db,'call_rooms'),where('callee','==',role()),where('status','==','ringing')),snap=>{
           const docSnap=snap.docs.find(d=>d.id!==activeRoom);
           const answerBtn=document.getElementById('yl-call-answer');
-          if(docSnap){incomingRoom=docSnap.id;answerBtn.hidden=false;statusCall.textContent='Incoming '+docSnap.data().type+' call from '+docSnap.data().caller+'!';}
-          else if(!activeRoom){answerBtn.hidden=true;}
+          if(docSnap){incomingRoom=docSnap.id;answerBtn.hidden=false;document.getElementById('yl-call-reject').hidden=false;statusCall.textContent='Incoming '+docSnap.data().type+' call from '+docSnap.data().caller+'!';}
+          else if(!activeRoom){incomingRoom=null;answerBtn.hidden=true;document.getElementById('yl-call-reject').hidden=true;}
         },e=>statusCall.textContent='Incoming-call listener: '+e.message);
       }
       async function answerCall(){
@@ -3994,17 +4032,21 @@
           const roomId=incomingRoom; activeRoom=roomId;
           const roomRef=doc(db,'call_rooms',roomId);
           statusCall.textContent='Requesting microphone and camera permission…';
-          const snap=await (await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js')).getDoc(roomRef);
+          const snap=await getDoc(roomRef);
           const data=snap.data(); const video=data.type==='video';
-          localStream=await navigator.mediaDevices.getUserMedia({audio:true,video});
+          localStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:video?{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:24,max:30}}:false});
           pc=attachPeer(roomId,false,video);
           localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
           await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+          await flushRemoteCandidates();
           const answer=await pc.createAnswer();await pc.setLocalDescription(answer);
           await updateDoc(roomRef,{answer:{type:answer.type,sdp:answer.sdp},status:'connected'});
-          candidateUnsubs.push(onSnapshot(collection(db,'call_rooms',roomId,'callerCandidates'),ss=>ss.docChanges().forEach(c=>{if(c.type==='added')pc&&pc.addIceCandidate(new RTCIceCandidate(c.doc.data())).catch(console.warn);})));
+          candidateUnsubs.push(onSnapshot(collection(db,'call_rooms',roomId,'callerCandidates'),ss=>ss.docChanges().forEach(c=>{if(c.type==='added')receiveRemoteCandidate(c.doc.data());})));
           candidateUnsubs.push(onSnapshot(roomRef,ss=>{if(ss.data()?.status==='ended')endCall(false);}));
           document.getElementById('yl-call-answer').hidden=true;
+          document.getElementById('yl-call-reject').hidden=true;
+          document.getElementById('yl-call-mute').hidden=false;
+          document.getElementById('yl-call-camera').hidden=!video;
           document.getElementById('yl-call-hangup').disabled=false;
           statusCall.textContent='Connected with '+data.caller+'.';
         }catch(e){statusCall.textContent='Could not answer: '+(e.message||e);await endCall(false);}
@@ -4012,29 +4054,65 @@
       document.getElementById('yl-call-audio').onclick=()=>startCall(false);
       document.getElementById('yl-call-video-start').onclick=()=>startCall(true);
       document.getElementById('yl-call-answer').onclick=answerCall;
+      document.getElementById('yl-call-reject').onclick=async()=>{if(!incomingRoom)return;const id=incomingRoom;incomingRoom=null;await updateDoc(doc(db,'call_rooms',id),{status:'declined',endedAt:serverTimestamp()}).catch(e=>statusCall.textContent='Could not decline call: '+e.message);document.getElementById('yl-call-answer').hidden=true;document.getElementById('yl-call-reject').hidden=true;statusCall.textContent='Incoming call declined.';};
+      document.getElementById('yl-call-mute').onclick=()=>{if(!localStream)return;micMuted=!micMuted;localStream.getAudioTracks().forEach(t=>t.enabled=!micMuted);document.getElementById('yl-call-mute').textContent=micMuted?'Unmute microphone':'Mute microphone';};
+      document.getElementById('yl-call-camera').onclick=()=>{if(!localStream)return;cameraDisabled=!cameraDisabled;localStream.getVideoTracks().forEach(t=>t.enabled=!cameraDisabled);document.getElementById('yl-call-camera').textContent=cameraDisabled?'Turn camera on':'Turn camera off';};
       document.getElementById('yl-call-hangup').onclick=()=>endCall(true);
       window.addEventListener('beforeunload',()=>{if(pc)pc.close();if(localStream)localStream.getTracks().forEach(t=>t.stop());});
       let locationWatch=null, locationUnsub=null;
       const locationStatus=document.getElementById('yl-location-status');
-      async function startLocation(){
+      const locationPreferenceKey=()=>role()?'yl_location_sharing_'+role():null;
+      function setLocationButtons(active){
+        document.getElementById('yl-location-start').disabled=active;
+        document.getElementById('yl-location-stop').disabled=!active;
+      }
+      async function startLocation(resume=false){
+        if(locationWatch!==null)return;
         if(!navigator.geolocation){locationStatus.textContent='Geolocation is not supported by this browser.';return;}
-        if(!appAuth.currentUser){locationStatus.textContent='Please sign in first.';return;}
-        locationStatus.textContent='Waiting for location permission…';
+        if(!appAuth.currentUser||!role()){locationStatus.textContent='Please sign in first.';return;}
+        if(!resume){
+          try{localStorage.setItem(locationPreferenceKey(),'on');}catch(e){}
+        }
+        locationStatus.textContent=resume?'Resuming your location sharing…':'Waiting for location permission…';
+        setLocationButtons(true);
         locationWatch=navigator.geolocation.watchPosition(async pos=>{
-          const payload={role:role(),latitude:pos.coords.latitude,longitude:pos.coords.longitude,accuracy:Math.round(pos.coords.accuracy),updatedAt:serverTimestamp(),sharing:true};
-          try{await setDoc(doc(db,'live_locations',role()),payload,{merge:true});locationStatus.textContent='Sharing live location. Accuracy about '+payload.accuracy+' m.';}
+          const currentRole=role();
+          if(!currentRole)return;
+          const payload={role:currentRole,latitude:pos.coords.latitude,longitude:pos.coords.longitude,accuracy:Math.round(pos.coords.accuracy),updatedAt:serverTimestamp(),sharing:true};
+          try{await setDoc(doc(db,'live_locations',currentRole),payload,{merge:true});locationStatus.textContent='Location sharing is on until you stop it. Accuracy about '+payload.accuracy+' m.';}
           catch(e){locationStatus.textContent='Could not share: '+e.message;}
-        },err=>{locationStatus.textContent='Location error: '+err.message;stopLocation(false);},{enableHighAccuracy:true,maximumAge:10000,timeout:20000});
-        document.getElementById('yl-location-start').disabled=true;
-        document.getElementById('yl-location-stop').disabled=false;
+        },err=>{
+          const permissionDenied=err.code===1;
+          const positionUnavailable=err.code===2;
+          const timeout=err.code===3;
+          locationStatus.textContent=permissionDenied
+            ? 'Location permission is blocked on this device. On iPhone: Settings → Privacy & Security → Location Services → Safari Websites → While Using the App, then enable Precise Location. Also check Safari: tap aA → Website Settings → Location → Allow. Return here, reload the page, and tap Start sharing my location.'
+            : positionUnavailable
+              ? 'Your device could not determine its location. Turn on Location Services, enable Wi‑Fi/mobile data, move somewhere with a clearer signal, then tap Start again.'
+              : timeout
+                ? 'Getting your location took too long. Keep Location Services on and tap Start again.'
+                : 'Could not get your location: '+err.message+'. Check this browser’s location permission and try again.';
+          if(locationWatch!==null){navigator.geolocation.clearWatch(locationWatch);locationWatch=null;}
+          try{localStorage.removeItem(locationPreferenceKey());}catch(e){}
+          setLocationButtons(false);
+          if(role())setDoc(doc(db,'live_locations',role()),{role:role(),sharing:false,updatedAt:serverTimestamp()},{merge:true}).catch(console.warn);
+        },{enableHighAccuracy:true,maximumAge:10000,timeout:30000});
       }
       async function stopLocation(clear=true){
         if(locationWatch!==null){navigator.geolocation.clearWatch(locationWatch);locationWatch=null;}
-        document.getElementById('yl-location-start').disabled=false;
-        document.getElementById('yl-location-stop').disabled=true;
+        try{if(locationPreferenceKey())localStorage.removeItem(locationPreferenceKey());}catch(e){}
+        setLocationButtons(false);
         if(clear&&role())await setDoc(doc(db,'live_locations',role()),{role:role(),sharing:false,updatedAt:serverTimestamp()},{merge:true}).catch(console.warn);
         locationStatus.textContent='Location sharing is off.';
       }
+      // A one-time opt-in survives reloads. When this signed-in device opens Y&L again,
+      // location updates resume automatically until the user explicitly stops sharing.
+      onAuthStateChanged(appAuth,user=>{
+        if(!user||!role())return;
+        let optedIn=false;
+        try{optedIn=localStorage.getItem(locationPreferenceKey())==='on';}catch(e){}
+        if(optedIn)startLocation(true);
+      });
       function watchPartnerLocation(){
         if(locationUnsub)return;
         locationUnsub=onSnapshot(doc(db,'live_locations',partner()),snap=>{
