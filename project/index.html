@@ -2113,130 +2113,161 @@
     </div>
 
     <script type="module">
-      import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-      import { getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, signOut, reload } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-      const config = {
-        apiKey:"AIzaSyD9IttO0llpQ2TYjDAppTlAPLmQq7btwgQ",
-        authDomain:"lara-s-site.firebaseapp.com", projectId:"lara-s-site",
-        storageBucket:"lara-s-site.firebasestorage.app",
-        messagingSenderId:"885789879803",
-        appId:"1:885789879803:web:039d0bee8db543bc3f2f5e"
-      };
-      const auth = getAuth(getApps().length ? getApp() : initializeApp(config));
-      // Keep the session persistent where supported, but never let persistence setup
-      // prevent the sign-in form and auth-state listener from initializing.
-      try {
-        await setPersistence(auth, browserLocalPersistence);
-      } catch (persistenceError) {
-        console.warn("[auth] Persistence unavailable; continuing with default session.", persistenceError);
-      }
-      const allowed = Object.freeze({
-        "yzaid6800@gmail.com":"Yassin",
-        "laraesam2007@gmail.com":"Lara"
-      });
+      // Attach handlers before loading Firebase so a slow/blocked SDK can never
+      // leave the Sign in button silently doing nothing.
       const gate = document.getElementById("authGate");
       const msg = document.getElementById("authMessage");
       const verifyActions = document.getElementById("authVerifyActions");
       const emailInput = document.getElementById("authEmail");
       const passInputAuth = document.getElementById("authPassword");
+      const authForm = document.getElementById("authForm");
       const loginButton = document.getElementById("authLogin");
-      const status = t => { if (msg) msg.textContent=t; };
-      const permitted = user => user && user.emailVerified && !!allowed[(user.email||"").toLowerCase()];
-      const showPending = user => {
+      const actionButtons = ["authLogin","authRegister","authRefresh","authResend","authCancel"].map(id => document.getElementById(id)).filter(Boolean);
+      const status = t => { if (msg) msg.textContent = t; };
+      const allowed = Object.freeze({
+        "yzaid6800@gmail.com":"Yassin",
+        "laraesam2007@gmail.com":"Lara"
+      });
+      let auth = null, firebaseAuth = null, authReady = null, busy = false;
+      const permitted = user => !!(user && user.emailVerified && allowed[(user.email || "").trim().toLowerCase()]);
+      function setBusy(value) {
+        busy = value;
+        actionButtons.forEach(button => { button.disabled = value; });
+      }
+      function unlock(user) {
+        gate.hidden = true;
+        document.getElementById("authSignOut").style.display = "block";
+        if (window.watchNotifications) window.watchNotifications();
+      }
+      function showPending(user) {
         gate.hidden = false;
         verifyActions.hidden = !user || user.emailVerified;
-        if (user && !user.emailVerified) status("Your email is not verified yet. Open the verification email, then tap “I've verified my email”.");
-      };
-      function unlock(user) {
-        gate.hidden=true;
-        document.getElementById("authSignOut").style.display="block";
-        if(window.watchNotifications) window.watchNotifications();
-      }
-      onAuthStateChanged(auth, async user => {
-        if (permitted(user)) { unlock(user); return; }
-        gate.hidden=false;
-        document.getElementById("authSignOut").style.display="none";
-        if(user && !allowed[(user.email||"").toLowerCase()]) {
-          status("This account is not invited to Our Little World.");
-          await signOut(auth);
-          return;
-        }
-        showPending(user);
-      }, error => {
-        console.error("[auth] Auth state listener failed:", error);
-        gate.hidden=false;
-        status("Couldn't connect to sign-in. Check your internet and reload the page.");
-      });
-      async function run(action) {
-        const wasDisabled = loginButton.disabled;
-        loginButton.disabled = true;
-        status("Signing in… please wait.");
-        try {
-          await action();
-        } catch(e) {
-          console.error("[auth]",e);
-          const messages = {
-            "auth/invalid-credential":"Email or password is incorrect. Check both and try again.",
-            "auth/user-not-found":"No account exists for this email yet. Choose Create my account.",
-            "auth/wrong-password":"Password is incorrect. Try again.",
-            "auth/invalid-email":"Please enter a valid email address.",
-            "auth/user-disabled":"This account is disabled. Contact the site owner.",
-            "auth/too-many-requests":"Too many attempts. Wait a little and try again.",
-            "auth/network-request-failed":"Connection problem. Check your internet and try again.",
-            "auth/operation-not-allowed":"Email/password sign-in is disabled in Firebase Authentication settings.",
-            "auth/email-already-in-use":"Account already exists. Please sign in.",
-            "auth/weak-password":"Choose a stronger password."
-          };
-          status(messages[e.code] || (e.message || "Couldn't sign in. Please try again."));
-        } finally {
-          loginButton.disabled = wasDisabled;
+        if (user && !user.emailVerified) {
+          status("Your email is not verified yet. Open the verification email, then tap “I've verified my email”.");
         }
       }
       function credentials() {
-        const email=emailInput.value.trim().toLowerCase();
-        if(!allowed[email]) throw new Error("Only the two invited email addresses can register.");
-        if(passInputAuth.value.length<8) throw new Error("Password must have at least 8 characters.");
-        return [email,passInputAuth.value];
+        const email = emailInput.value.trim().toLowerCase();
+        if (!allowed[email]) throw new Error("This email is not on the private invite list.");
+        if (passInputAuth.value.length < 8) throw new Error("Password must have at least 8 characters.");
+        return [email, passInputAuth.value];
       }
-      document.getElementById("authForm").addEventListener("submit",e=>{
+      function errorMessage(e) {
+        const messages = {
+          "auth/invalid-credential":"Email or password is incorrect. Check both and try again.",
+          "auth/user-not-found":"No account exists for this email yet. Choose Create my account.",
+          "auth/wrong-password":"Password is incorrect. Try again.",
+          "auth/invalid-email":"Please enter a valid email address.",
+          "auth/user-disabled":"This account is disabled. Contact the site owner.",
+          "auth/too-many-requests":"Too many attempts. Wait a little and try again.",
+          "auth/network-request-failed":"Connection problem. Check your internet and try again.",
+          "auth/operation-not-allowed":"Email/password sign-in is disabled in Firebase Authentication settings.",
+          "auth/email-already-in-use":"This account already exists. Please sign in.",
+          "auth/weak-password":"Choose a stronger password.",
+          "auth/unauthorized-domain":"This website domain is not authorized in Firebase Authentication."
+        };
+        return messages[e && e.code] || (e && e.message) || "Couldn't continue. Please try again.";
+      }
+      async function run(action) {
+        if (busy) return;
+        setBusy(true);
+        status("Connecting securely…");
+        try {
+          await authReady;
+          await action();
+        } catch (e) {
+          console.error("[auth]", e);
+          status(errorMessage(e));
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      // These listeners exist immediately, even while the Firebase SDK is loading.
+      authForm.addEventListener("submit", e => {
         e.preventDefault();
-        run(async()=>{
-          const [email,password]=credentials();
-          const result=await signInWithEmailAndPassword(auth,email,password);
-          await reload(result.user);
-          if(permitted(result.user)) { unlock(result.user); }
+        run(async () => {
+          const [email, password] = credentials();
+          const result = await firebaseAuth.signInWithEmailAndPassword(auth, email, password);
+          try { await firebaseAuth.reload(result.user); }
+          catch (refreshError) { console.warn("[auth] Could not refresh profile after sign-in:", refreshError); }
+          if (permitted(result.user)) unlock(result.user);
           else showPending(result.user);
         });
       });
-      document.getElementById("authRegister").onclick=()=>run(async()=>{
-        const [email,password]=credentials();
-        const result=await createUserWithEmailAndPassword(auth,email,password);
-        await sendEmailVerification(result.user);
+      document.getElementById("authRegister").addEventListener("click", () => run(async () => {
+        const [email, password] = credentials();
+        const result = await firebaseAuth.createUserWithEmailAndPassword(auth, email, password);
+        await firebaseAuth.sendEmailVerification(result.user);
         showPending(result.user);
         status("Verification email sent. Open it, then return and tap “I've verified my email”.");
-      });
-      document.getElementById("authRefresh").onclick=()=>run(async()=>{
-        if(!auth.currentUser) throw new Error("Sign in again first.");
-        await reload(auth.currentUser);
-        if(permitted(auth.currentUser)) { unlock(auth.currentUser); }
+      }));
+      document.getElementById("authRefresh").addEventListener("click", () => run(async () => {
+        if (!auth.currentUser) throw new Error("Sign in again first.");
+        await firebaseAuth.reload(auth.currentUser);
+        if (permitted(auth.currentUser)) unlock(auth.currentUser);
         else showPending(auth.currentUser);
-      });
-      document.getElementById("authResend").onclick=()=>run(async()=>{
-        if(!auth.currentUser) throw new Error("Sign in again first.");
-        await sendEmailVerification(auth.currentUser);
+      }));
+      document.getElementById("authResend").addEventListener("click", () => run(async () => {
+        if (!auth.currentUser) throw new Error("Sign in again first.");
+        await firebaseAuth.sendEmailVerification(auth.currentUser);
         status("Verification email sent again. Check Inbox and Spam.");
-      });
-      document.getElementById("authCancel").onclick=()=>run(async()=>{
-        await signOut(auth);
-        verifyActions.hidden=true;
+      }));
+      document.getElementById("authCancel").addEventListener("click", () => run(async () => {
+        await firebaseAuth.signOut(auth);
+        verifyActions.hidden = true;
         status("You can sign in with another account.");
-      });
-      document.getElementById("authSignOut").onclick=()=>run(async()=>{
-        await signOut(auth);
+      }));
+      document.getElementById("authSignOut").addEventListener("click", () => run(async () => {
+        await firebaseAuth.signOut(auth);
         location.reload();
-      });
-      // Role selection is derived from a verified Firebase account, never a self-chosen name.
-      window.ylAuthenticatedRole=()=>permitted(auth.currentUser) ? allowed[auth.currentUser.email.toLowerCase()] : null;
+      }));
+
+      // Dynamic imports are caught and reported on the login screen instead of
+      // failing silently before the form's event handlers can be installed.
+      authReady = (async () => {
+        try {
+          const [appSdk, authSdk] = await Promise.all([
+            import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"),
+            import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js")
+          ]);
+          const config = {
+            apiKey:"AIzaSyD9IttO0llpQ2TYjDAppTlAPLmQq7btwgQ",
+            authDomain:"lara-s-site.firebaseapp.com",
+            projectId:"lara-s-site",
+            storageBucket:"lara-s-site.firebasestorage.app",
+            messagingSenderId:"885789879803",
+            appId:"1:885789879803:web:039d0bee8db543bc3f2f5e"
+          };
+          const app = appSdk.getApps().length ? appSdk.getApp() : appSdk.initializeApp(config);
+          auth = authSdk.getAuth(app);
+          firebaseAuth = authSdk;
+          try { await authSdk.setPersistence(auth, authSdk.browserLocalPersistence); }
+          catch (e) { console.warn("[auth] Local persistence unavailable:", e); }
+          authSdk.onAuthStateChanged(auth, async user => {
+            if (permitted(user)) { unlock(user); return; }
+            gate.hidden = false;
+            document.getElementById("authSignOut").style.display = "none";
+            if (user && !allowed[(user.email || "").trim().toLowerCase()]) {
+              status("This account is not invited to Our Little World.");
+              await authSdk.signOut(auth);
+              return;
+            }
+            showPending(user);
+          }, e => {
+            console.error("[auth] Auth state listener failed:", e);
+            gate.hidden = false;
+            status("Sign-in session check failed: " + errorMessage(e));
+          });
+          status("Ready. Sign in with your invited email.");
+        } catch (e) {
+          console.error("[auth] Firebase initialization failed:", e);
+          status("Login could not start: " + errorMessage(e) + " Check your connection, then reload.");
+          throw e;
+        }
+      })();
+      window.ylAuthenticatedRole = () => permitted(auth && auth.currentUser)
+        ? allowed[auth.currentUser.email.toLowerCase()] : null;
     </script>
 
     <!-- Firebase & ImgBB Upload Logic (With Image Compression for Speed) -->
