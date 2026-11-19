@@ -2512,7 +2512,7 @@
                 const input = el.querySelector('.today-comment-input');
                 const commentBtn = el.querySelector('.today-comment-form .btn');
                 const submitComment = async () => {
-                    const myRole = localStorage.getItem('ylRole');
+                    const myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
                     if (!myRole) { document.getElementById('rolePicker').classList.add('open'); return; }
                     const text = input.value.trim();
                     if (!text) return;
@@ -2540,7 +2540,7 @@
         let editingStoryId = null;
 
         document.getElementById('saveStoryBtn').onclick = async () => {
-            const myRole = localStorage.getItem('ylRole');
+            const myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
             if (!myRole) { document.getElementById('rolePicker').classList.add('open'); return; }
             const btn = document.getElementById('saveStoryBtn');
             const dateVal = document.getElementById('storyDate').value;
@@ -2685,7 +2685,7 @@
         let editingMusicId = null;
 
         document.getElementById('saveMusicBtn').onclick = async () => {
-            const myRole = localStorage.getItem('ylRole');
+            const myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
             if (!myRole) { document.getElementById('rolePicker').classList.add('open'); return; }
             const title = document.getElementById('musicTitle').value.trim();
             const link = document.getElementById('musicLink').value.trim();
@@ -2859,7 +2859,7 @@
         };
 
         document.getElementById('sendLetterBtn').onclick = async () => {
-            const myRole = localStorage.getItem('ylRole');
+            const myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
             if (!myRole) {
                 document.getElementById('rolePicker').classList.add('open');
                 return;
@@ -3026,7 +3026,7 @@
         }
 
         window.notifyPartner = async function (section, message) {
-            const myRole = localStorage.getItem('ylRole');
+            const myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
             if (!myRole) {
                 document.getElementById('rolePicker').classList.add('open');
                 console.warn('[notifications] choose a role before creating shared activity');
@@ -3098,7 +3098,7 @@
         window._notifUnsub = null;
         // Safe to call again (e.g. after the role is picked or switched): it re-subscribes.
         window.watchNotifications = function () {
-            const myRole = localStorage.getItem('ylRole');
+            const myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
             if (!myRole) return;
             if (window._notifUnsub) { window._notifUnsub(); window._notifUnsub = null; }
             notifFirstLoad = true;
@@ -3305,7 +3305,7 @@
         });
         placesFormEl.addEventListener('submit', async event => {
             event.preventDefault();
-            const role = localStorage.getItem('ylRole');
+            const role = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
             if (!role) { document.getElementById('rolePicker').classList.add('open'); placesStatusEl.textContent = 'Choose who you are first, then save your place.'; return; }
             const name = document.getElementById('placesName').value.trim();
             const memory = document.getElementById('placesMemory').value.trim();
@@ -3425,7 +3425,7 @@
         import { doc, setDoc, updateDoc, getDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         const db = window.db;
 
-        let myRole = localStorage.getItem('ylRole');
+        let myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
         let pendingAction = null;
         const rolePicker = document.getElementById('rolePicker');
 
