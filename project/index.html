@@ -4087,12 +4087,21 @@
           try{await setDoc(doc(db,'live_locations',currentRole),payload,{merge:true});locationStatus.textContent='Location sharing is on until you stop it. Accuracy about '+payload.accuracy+' m.';}
           catch(e){locationStatus.textContent='Could not share: '+e.message;}
         },err=>{
-          locationStatus.textContent='Location unavailable: '+err.message+'. Sharing was paused; tap Start to try again.';
+          const permissionDenied=err.code===1;
+          const positionUnavailable=err.code===2;
+          const timeout=err.code===3;
+          locationStatus.textContent=permissionDenied
+            ? 'Location permission is blocked on this device. On iPhone: Settings → Privacy & Security → Location Services → Safari Websites → While Using the App, then enable Precise Location. Also check Safari: tap aA → Website Settings → Location → Allow. Return here, reload the page, and tap Start sharing my location.'
+            : positionUnavailable
+              ? 'Your device could not determine its location. Turn on Location Services, enable Wi‑Fi/mobile data, move somewhere with a clearer signal, then tap Start again.'
+              : timeout
+                ? 'Getting your location took too long. Keep Location Services on and tap Start again.'
+                : 'Could not get your location: '+err.message+'. Check this browser’s location permission and try again.';
           if(locationWatch!==null){navigator.geolocation.clearWatch(locationWatch);locationWatch=null;}
           try{localStorage.removeItem(locationPreferenceKey());}catch(e){}
           setLocationButtons(false);
           if(role())setDoc(doc(db,'live_locations',role()),{role:role(),sharing:false,updatedAt:serverTimestamp()},{merge:true}).catch(console.warn);
-        },{enableHighAccuracy:true,maximumAge:10000,timeout:20000});
+        },{enableHighAccuracy:true,maximumAge:10000,timeout:30000});
       }
       async function stopLocation(clear=true){
         if(locationWatch!==null){navigator.geolocation.clearWatch(locationWatch);locationWatch=null;}
