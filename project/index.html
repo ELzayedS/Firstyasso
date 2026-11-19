@@ -2123,8 +2123,13 @@
         appId:"1:885789879803:web:039d0bee8db543bc3f2f5e"
       };
       const auth = getAuth(getApps().length ? getApp() : initializeApp(config));
-      // Keep this device signed in across reloads and browser restarts.
-      await setPersistence(auth, browserLocalPersistence);
+      // Keep the session persistent where supported, but never let persistence setup
+      // prevent the sign-in form and auth-state listener from initializing.
+      try {
+        await setPersistence(auth, browserLocalPersistence);
+      } catch (persistenceError) {
+        console.warn("[auth] Persistence unavailable; continuing with default session.", persistenceError);
+      }
       const allowed = Object.freeze({
         "yzaid6800@gmail.com":"Yassin",
         "laraesam2007@gmail.com":"Lara"
@@ -2134,15 +2139,15 @@
       const verifyActions = document.getElementById("authVerifyActions");
       const emailInput = document.getElementById("authEmail");
       const passInputAuth = document.getElementById("authPassword");
-      const status = t => { msg.textContent=t; };
+      const loginButton = document.getElementById("authLogin");
+      const status = t => { if (msg) msg.textContent=t; };
       const permitted = user => user && user.emailVerified && !!allowed[(user.email||"").toLowerCase()];
       const showPending = user => {
         gate.hidden = false;
         verifyActions.hidden = !user || user.emailVerified;
-        if (user && !user.emailVerified) status("Verify your email before entering. Check Inbox and Spam.");
+        if (user && !user.emailVerified) status("Your email is not verified yet. Open the verification email, then tap “I've verified my email”.");
       };
       function unlock(user) {
-        const role = allowed[user.email.toLowerCase()];
         gate.hidden=true;
         document.getElementById("authSignOut").style.display="block";
         if(window.watchNotifications) window.watchNotifications();
@@ -2157,16 +2162,34 @@
           return;
         }
         showPending(user);
+      }, error => {
+        console.error("[auth] Auth state listener failed:", error);
+        gate.hidden=false;
+        status("Couldn't connect to sign-in. Check your internet and reload the page.");
       });
       async function run(action) {
-        status("Please wait…");
-        try { await action(); }
-        catch(e) {
+        const wasDisabled = loginButton.disabled;
+        loginButton.disabled = true;
+        status("Signing in… please wait.");
+        try {
+          await action();
+        } catch(e) {
           console.error("[auth]",e);
-          status(e.code === "auth/email-already-in-use" ? "Account already exists. Please sign in." :
-            e.code === "auth/invalid-credential" ? "Incorrect email or password." :
-            e.code === "auth/weak-password" ? "Choose a stronger password." :
-            "Could not continue: " + (e.message||"Try again."));
+          const messages = {
+            "auth/invalid-credential":"Email or password is incorrect. Check both and try again.",
+            "auth/user-not-found":"No account exists for this email yet. Choose Create my account.",
+            "auth/wrong-password":"Password is incorrect. Try again.",
+            "auth/invalid-email":"Please enter a valid email address.",
+            "auth/user-disabled":"This account is disabled. Contact the site owner.",
+            "auth/too-many-requests":"Too many attempts. Wait a little and try again.",
+            "auth/network-request-failed":"Connection problem. Check your internet and try again.",
+            "auth/operation-not-allowed":"Email/password sign-in is disabled in Firebase Authentication settings.",
+            "auth/email-already-in-use":"Account already exists. Please sign in.",
+            "auth/weak-password":"Choose a stronger password."
+          };
+          status(messages[e.code] || (e.message || "Couldn't sign in. Please try again."));
+        } finally {
+          loginButton.disabled = wasDisabled;
         }
       }
       function credentials() {
@@ -2180,6 +2203,7 @@
         run(async()=>{
           const [email,password]=credentials();
           const result=await signInWithEmailAndPassword(auth,email,password);
+          await reload(result.user);
           if(permitted(result.user)) { unlock(result.user); }
           else showPending(result.user);
         });
@@ -2189,7 +2213,7 @@
         const result=await createUserWithEmailAndPassword(auth,email,password);
         await sendEmailVerification(result.user);
         showPending(result.user);
-        status("Verification email sent. Open it before signing in.");
+        status("Verification email sent. Open it, then return and tap “I've verified my email”.");
       });
       document.getElementById("authRefresh").onclick=()=>run(async()=>{
         if(!auth.currentUser) throw new Error("Sign in again first.");
@@ -2200,7 +2224,7 @@
       document.getElementById("authResend").onclick=()=>run(async()=>{
         if(!auth.currentUser) throw new Error("Sign in again first.");
         await sendEmailVerification(auth.currentUser);
-        status("Verification email sent again.");
+        status("Verification email sent again. Check Inbox and Spam.");
       });
       document.getElementById("authCancel").onclick=()=>run(async()=>{
         await signOut(auth);
