@@ -3906,7 +3906,7 @@
 
     <script type="module">
       import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-      import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+      import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
       const appAuth=getAuth(), db=getFirestore();
       const panel=document.getElementById('yl-feature-panel');
       const role=()=>window.ylAuthenticatedRole ? window.ylAuthenticatedRole() : null;
@@ -3972,7 +3972,7 @@
         if(played) statusCall.textContent='Call audio enabled.';
       };
       function attachPeer(roomId,initiator,video){
-        pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});
+        pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}],iceCandidatePoolSize:10,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require'});
         pc.ontrack=e=>{
           const stream=e.streams[0];
           // Route sound through a dedicated audio element. Muting the video element
@@ -4004,7 +4004,7 @@
           if(!appAuth.currentUser) throw new Error('Please sign in again.');
           await endCall(false);
           statusCall.textContent='Requesting microphone'+(video?' and camera':'')+' permission…';
-          localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:!!video});
+          localStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:video?{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:24,max:30}}:false});
           const roomRef=doc(collection(db,'call_rooms')); activeRoom=roomRef.id;
           pc=attachPeer(activeRoom,true,video);
           localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
@@ -4037,9 +4037,9 @@
           const roomId=incomingRoom; activeRoom=roomId;
           const roomRef=doc(db,'call_rooms',roomId);
           statusCall.textContent='Requesting microphone and camera permission…';
-          const snap=await (await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js')).getDoc(roomRef);
+          const snap=await getDoc(roomRef);
           const data=snap.data(); const video=data.type==='video';
-          localStream=await navigator.mediaDevices.getUserMedia({audio:true,video});
+          localStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:video?{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:24,max:30}}:false});
           pc=attachPeer(roomId,false,video);
           localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
           await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
