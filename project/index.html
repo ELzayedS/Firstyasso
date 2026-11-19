@@ -2054,13 +2054,13 @@
                     <div class="menu-name">Our Places</div>
                     <div class="menu-desc">The places that hold our memories.</div>
                 </a>
-                <a class="menu-card" data-coming="Secrets">
+                <a class="menu-card" data-coming="Calling">
                     <div class="menu-icon">🔐</div>
-                    <div class="menu-name">Secrets</div>
+                    <div class="menu-name">Calling</div>
                 </a>
-                <a class="menu-card" data-coming="Future Us">
+                <a class="menu-card" data-coming="Live Location">
                     <div class="menu-icon">🫶</div>
-                    <div class="menu-name">Future Us</div>
+                    <div class="menu-name">Live Location</div>
                 </a>
             </div>
             <button class="menu-close" id="menuClose">← Back to Home</button>
@@ -2095,7 +2095,7 @@
           <div id="yl-call-status" role="status">Ready when you are.</div>
         </section>
         <section id="yl-future-view" hidden>
-          <h2>Future Us 🫶</h2>
+          <h2>Live Location 📍</h2>
           <p class="yl-feature-muted">Share your live location only when you choose. You can stop sharing any time.</p>
           <div class="yl-location-box">
             <strong>Your location</strong>
@@ -3929,7 +3929,7 @@
       }
       document.getElementById('yl-feature-close').onclick=()=>{panel.classList.remove('open');panel.setAttribute('aria-hidden','true');};
       document.querySelectorAll('.menu-card[data-coming]').forEach(card=>card.addEventListener('click',e=>{
-        e.preventDefault(); showFeature(card.dataset.coming==='Secrets'?'calls':'future');
+        e.preventDefault(); showFeature(card.dataset.coming==='Calling'?'calls':'future');
       }));
       function cleanupCandidates(){candidateUnsubs.forEach(fn=>fn());candidateUnsubs=[];}
       async function endCall(update=true){
