@@ -4,15 +4,14 @@ service cloud.firestore {
     function signedInAndVerified() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && request.auth.token.email is string
-        && request.auth.token.email.lower() in [
+        && request.auth.token.email in [
           'yzaid6800@gmail.com',
           'laraesam2007@gmail.com'
         ];
     }
 
     function myRole() {
-      return request.auth.token.email.lower() == 'yzaid6800@gmail.com'
+      return request.auth.token.email == 'yzaid6800@gmail.com'
         ? 'Yassin'
         : 'Lara';
     }
@@ -26,8 +25,7 @@ service cloud.firestore {
         && (room.caller == myRole() || room.callee == myRole());
     }
 
-    // Shared couple data. Only the two invited, email-verified accounts
-    // can access these collections.
+    // Shared couple data: only the two invited, email-verified accounts.
     match /today_us/{documentId} {
       allow read, create, update, delete: if signedInAndVerified();
     }
@@ -47,15 +45,14 @@ service cloud.firestore {
       allow read, create, update, delete: if signedInAndVerified();
     }
 
-    // The games use fixed shared state documents.
+    // The app uses these three shared game-state documents.
     match /games_live/{gameId} {
       allow read, create, update: if signedInAndVerified()
         && gameId in ['questions', 'xo', 'snake'];
       allow delete: if false;
     }
 
-    // A user can write only their own location document; both invited
-    // partners can read the shared location documents.
+    // Each partner writes only their own location; both can read either.
     match /live_locations/{userRole} {
       allow read: if signedInAndVerified()
         && userRole in ['Yassin', 'Lara'];
@@ -65,7 +62,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Call rooms are created by the caller for the other invited partner.
+    // Call rooms must be initiated by one partner for the other.
     match /call_rooms/{roomId} {
       allow read: if signedInAndVerified();
       allow create: if signedInAndVerified()
@@ -105,7 +102,7 @@ service cloud.firestore {
       }
     }
 
-    // Deny every collection/path not explicitly listed above.
+    // Everything not explicitly allowed above is denied.
     match /{document=**} {
       allow read, write: if false;
     }
