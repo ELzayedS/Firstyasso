@@ -2088,10 +2088,10 @@
           <p class="yl-feature-muted">Start a private voice or video call with the other signed-in person. Keep this page open while calling.</p>
           <div class="yl-feature-actions">
             <button id="yl-call-audio">☎ Voice call</button><button id="yl-call-video-start">▣ Video call</button>
-            <button id="yl-call-answer" hidden>Answer incoming call</button><button id="yl-call-reject" hidden>Decline</button><button id="yl-call-mute" hidden>Mute microphone</button><button id="yl-call-camera" hidden>Turn camera off</button><button id="yl-call-hangup" disabled>End call</button>
+            <button id="yl-call-answer" hidden>Answer incoming call</button><button id="yl-call-reject" hidden>Decline</button><button id="yl-call-enable-sound" hidden>Enable call sound</button><button id="yl-call-mute" hidden>Mute microphone</button><button id="yl-call-camera" hidden>Turn camera off</button><button id="yl-call-hangup" disabled>End call</button>
           </div>
-          <video id="yl-call-video" autoplay playsinline></video>
-          <audio id="yl-call-audio-out" autoplay></audio>
+          <video id="yl-call-video" autoplay playsinline muted></video>
+          <audio id="yl-call-audio-out" autoplay playsinline></audio>
           <div id="yl-call-status" role="status">Ready when you are.</div>
         </section>
         <section id="yl-future-view" hidden>
@@ -3943,7 +3943,7 @@
         pendingRemoteCandidates=[];remoteDescriptionReady=false;
         if(pc){pc.ontrack=null;pc.onicecandidate=null;pc.close();pc=null;}
         if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null;}
-        callVideo.srcObject=null;callVideo.style.display='none';callAudio.srcObject=null;
+        callVideo.srcObject=null;callVideo.style.display='none';callVideo.muted=true;callAudio.pause();callAudio.srcObject=null;document.getElementById('yl-call-enable-sound').hidden=true;
         if(update && activeRoom) await updateDoc(doc(db,'call_rooms',activeRoom),{status:'ended',endedAt:serverTimestamp()}).catch(()=>{});
         activeRoom=null;incomingRoom=null;
         document.getElementById('yl-call-hangup').disabled=true;
@@ -3954,12 +3954,42 @@
         micMuted=false;cameraDisabled=false;
         statusCall.textContent='Call ended.';
       }
+      async function playRemoteCallAudio(){
+        if(!callAudio.srcObject) return false;
+        try{
+          await callAudio.play();
+          document.getElementById('yl-call-enable-sound').hidden=true;
+          return true;
+        }catch(err){
+          document.getElementById('yl-call-enable-sound').hidden=false;
+          statusCall.textContent='Call connected. Tap “Enable call sound” to hear audio on this device.';
+          console.warn('[calls] Remote audio playback needs a user gesture:',err);
+          return false;
+        }
+      }
+      document.getElementById('yl-call-enable-sound').onclick=async()=>{
+        const played=await playRemoteCallAudio();
+        if(played) statusCall.textContent='Call audio enabled.';
+      };
       function attachPeer(roomId,initiator,video){
         pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});
         pc.ontrack=e=>{
           const stream=e.streams[0];
-          if(video){callVideo.srcObject=stream;callVideo.style.display='block';}
-          else callAudio.srcObject=stream;
+          // Route sound through a dedicated audio element. Muting the video element
+          // avoids duplicate audio and improves iOS Safari autoplay compatibility.
+          callAudio.srcObject=stream;
+          callAudio.playsInline=true;
+          if(video){
+            callVideo.srcObject=stream;
+            callVideo.muted=true;
+            callVideo.playsInline=true;
+            callVideo.style.display='block';
+            callVideo.play().catch(err=>console.warn('[calls] Remote video playback was blocked:',err));
+          }else{
+            callVideo.srcObject=null;
+            callVideo.style.display='none';
+          }
+          playRemoteCallAudio();
         };
         pc.onicecandidate=e=>{
           if(e.candidate){
