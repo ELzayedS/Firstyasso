@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedInAndVerified() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email is string
+        && request.auth.token.email.lower() in [
+          'yzaid6800@gmail.com',
+          'laraesam2007@gmail.com'
+        ];
+    }
+
+    function myRole() {
+      return request.auth.token.email.lower() == 'yzaid6800@gmail.com'
+        ? 'Yassin'
+        : 'Lara';
+    }
+
+    function partnerRole() {
+      return myRole() == 'Yassin' ? 'Lara' : 'Yassin';
+    }
+
+    function isRoomParticipant(room) {
+      return signedInAndVerified()
+        && (room.caller == myRole() || room.callee == myRole());
+    }
+
+    // Shared couple data. Only the two invited, email-verified accounts
+    // can access these collections.
+    match /today_us/{documentId} {
+      allow read, create, update, delete: if signedInAndVerified();
+    }
+    match /our_story/{documentId} {
+      allow read, create, update, delete: if signedInAndVerified();
+    }
+    match /our_music/{documentId} {
+      allow read, create, update, delete: if signedInAndVerified();
+    }
+    match /letters/{documentId} {
+      allow read, create, update, delete: if signedInAndVerified();
+    }
+    match /notifications/{documentId} {
+      allow read, create, update, delete: if signedInAndVerified();
+    }
+    match /our_places/{documentId} {
+      allow read, create, update, delete: if signedInAndVerified();
+    }
+
+    // The games use fixed shared state documents.
+    match /games_live/{gameId} {
+      allow read, create, update: if signedInAndVerified()
+        && gameId in ['questions', 'xo', 'snake'];
+      allow delete: if false;
+    }
+
+    // A user can write only their own location document; both invited
+    // partners can read the shared location documents.
+    match /live_locations/{userRole} {
+      allow read: if signedInAndVerified()
+        && userRole in ['Yassin', 'Lara'];
+      allow create, update: if signedInAndVerified()
+        && userRole == myRole()
+        && request.resource.data.role == myRole();
+      allow delete: if false;
+    }
+
+    // Call rooms are created by the caller for the other invited partner.
+    match /call_rooms/{roomId} {
+      allow read: if signedInAndVerified();
+      allow create: if signedInAndVerified()
+        && request.resource.data.caller == myRole()
+        && request.resource.data.callee == partnerRole()
+        && request.resource.data.status == 'ringing'
+        && request.resource.data.type in ['audio', 'video']
+        && request.resource.data.offer is map;
+      allow update: if isRoomParticipant(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['answer', 'status', 'endedAt'])
+        && (
+          (myRole() == resource.data.callee
+            && request.resource.data.status == 'connected'
+            && request.resource.data.answer is map)
+          || (myRole() == resource.data.callee
+            && request.resource.data.status == 'declined')
+          || request.resource.data.status == 'ended'
+        );
+      allow delete: if false;
+
+      match /{candidateSide}/{candidateId} {
+        function parentRoom() {
+          return get(/databases/$(database)/documents/call_rooms/$(roomId)).data;
+        }
+        allow read: if signedInAndVerified()
+          && candidateSide in ['callerCandidates', 'calleeCandidates']
+          && isRoomParticipant(parentRoom());
+        allow create: if signedInAndVerified()
+          && candidateSide in ['callerCandidates', 'calleeCandidates']
+          && isRoomParticipant(parentRoom())
+          && ((candidateSide == 'callerCandidates'
+              && parentRoom().caller == myRole())
+            || (candidateSide == 'calleeCandidates'
+              && parentRoom().callee == myRole()));
+        allow update, delete: if false;
+      }
+    }
+
+    // Deny every collection/path not explicitly listed above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
