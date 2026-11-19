@@ -2143,16 +2143,12 @@
       };
       function unlock(user) {
         const role = allowed[user.email.toLowerCase()];
-        localStorage.setItem("ylRole",role);
-        localStorage.setItem("yl_unlocked","true");
         gate.hidden=true;
         document.getElementById("authSignOut").style.display="block";
         if(window.watchNotifications) window.watchNotifications();
       }
       onAuthStateChanged(auth, async user => {
         if (permitted(user)) { unlock(user); return; }
-        localStorage.removeItem("ylRole");
-        localStorage.removeItem("yl_unlocked");
         gate.hidden=false;
         document.getElementById("authSignOut").style.display="none";
         if(user && !allowed[(user.email||"").toLowerCase()]) {
@@ -2445,7 +2441,7 @@
         // like an Instagram post — so it's easy to notice something new is
         // waiting for a reply, even long after it was posted.
         document.getElementById('postTodayBtn').onclick = async () => {
-            const myRole = localStorage.getItem('ylRole');
+            const myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
             if (!myRole) { document.getElementById('rolePicker').classList.add('open'); return; }
 
             const caption = document.getElementById('todayCaption').value.trim();
@@ -3448,7 +3444,6 @@
             const verifiedRole = window.ylAuthenticatedRole && window.ylAuthenticatedRole();
             if (!verifiedRole || name !== verifiedRole) { rolePicker.classList.remove('open'); return; }
             myRole = verifiedRole;
-            localStorage.setItem('ylRole', name);
             rolePicker.classList.remove('open');
             if (window.watchNotifications) window.watchNotifications();   // start notifications right after picking
             if (pendingAction) { const a = pendingAction; pendingAction = null; runAction(a); }
@@ -3914,7 +3909,7 @@
       import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
       const appAuth=getAuth(), db=getFirestore();
       const panel=document.getElementById('yl-feature-panel');
-      const role=()=>localStorage.getItem('ylRole');
+      const role=()=>window.ylAuthenticatedRole ? window.ylAuthenticatedRole() : null;
       const partner=()=>role()==='Yassin'?'Lara':'Yassin';
       const statusCall=document.getElementById('yl-call-status');
       let pc=null, localStream=null, activeRoom=null, candidateUnsubs=[], incomingUnsub=null, incomingRoom=null, pendingRemoteCandidates=[], remoteDescriptionReady=false, micMuted=false, cameraDisabled=false;
