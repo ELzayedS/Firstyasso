@@ -1568,6 +1568,171 @@
         #authSignOut { position:fixed; bottom:12px; right:12px; z-index:80; padding:7px 12px; font:11px Arial,sans-serif; color:var(--cream); border:1px solid var(--line); border-radius:20px; background:#24171d; cursor:pointer; display:none; }
 
     </style>
+<style id="yl-visual-refresh">
+
+    /* Y&L visual refresh — design-only layer based on the supplied sample */
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Sacramento&display=swap');
+
+    :root {
+      --bg: #09060c;
+      --panel: rgba(20, 12, 22, .78);
+      --panel2: rgba(24, 15, 26, .86);
+      --rose: #d48c96;
+      --champ: #f5d3a1;
+      --cream: #fbf4ef;
+      --muted: #dfd2d0;
+      --line: rgba(235, 195, 175, .24);
+      --yl-glass: rgba(20, 12, 22, .42);
+      --yl-glass-raised: rgba(24, 15, 26, .62);
+      --yl-border-glow: rgba(245, 211, 161, .34);
+      --yl-highlight: rgba(255, 255, 255, .14);
+      --yl-shadow: 0 20px 44px -12px rgba(0,0,0,.48), 0 4px 14px rgba(0,0,0,.24), inset 0 1px 0 var(--yl-highlight);
+      --yl-card-shadow: 0 12px 28px -8px rgba(0,0,0,.36), 0 2px 8px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.12);
+      --yl-ease: cubic-bezier(.22,1,.36,1);
+    }
+
+    html, body {
+      background-color: var(--bg);
+      color: var(--cream);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      scrollbar-color: rgba(212,140,150,.55) rgba(9,6,12,.7);
+    }
+    body {
+      background-image:
+        radial-gradient(ellipse at 14% 8%, rgba(212,140,150,.10), transparent 34%),
+        radial-gradient(ellipse at 88% 78%, rgba(245,211,161,.07), transparent 32%);
+    }
+    button, input, textarea, select { font-family: 'Plus Jakarta Sans', sans-serif; }
+    h1, h2, h3, h4, .logo, .history-title h2, .places-heading h2,
+    .menu-title, .role-picker-title, .game-view-top h3 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-weight: 500;
+      letter-spacing: -.02em;
+    }
+    .logo { text-shadow: 0 0 38px rgba(212,140,150,.2), 0 0 90px rgba(245,211,161,.08); }
+    .brand-script, .script, .signature { font-family: 'Sacramento', cursive; }
+
+    .home {
+      background:
+        radial-gradient(ellipse at 50% 38%, rgba(212,140,150,.16), transparent 34%),
+        radial-gradient(ellipse at 78% 78%, rgba(245,211,161,.09), transparent 30%),
+        linear-gradient(145deg, #080507 0%, #160d16 52%, #09060c 100%);
+    }
+    .glow { background: rgba(212,140,150,.07); filter: blur(100px); }
+    .star { background: #fff7ed; box-shadow: 0 0 7px rgba(245,211,161,.3); }
+    .shooting { filter: drop-shadow(0 0 5px rgba(245,211,161,.55)); }
+
+    .pass-gate {
+      background:
+        radial-gradient(ellipse at 50% 35%, rgba(212,140,150,.13), transparent 42%),
+        linear-gradient(145deg, #09060c, #160d16 58%, #09060c);
+      backdrop-filter: blur(18px);
+    }
+    .pass-box, .side-card, .story-add-card, .story-content-box,
+    .memory-card, .notif-panel, .menu-card, .game-hub-card,
+    .game-view, .question-card, .role-picker-inner, .places-panel,
+    .places-roll-card, .places-browse-card, .auth-card {
+      background: linear-gradient(145deg, rgba(31,20,31,.72), rgba(15,10,17,.76));
+      border: 1px solid var(--line);
+      box-shadow: var(--yl-card-shadow);
+      backdrop-filter: blur(22px) saturate(125%);
+      -webkit-backdrop-filter: blur(22px) saturate(125%);
+    }
+    .pass-box { border-color: var(--yl-border-glow); border-radius: 28px; box-shadow: var(--yl-shadow); }
+    .pass-box h2, .history-title h2, .places-heading h2, .menu-title,
+    .role-picker-title, .game-view-top h3 { color: var(--champ); }
+    .pass-box p, .eyebrow, .subtitle, .tagline, header .intro,
+    .history-title p, .places-heading p, .places-panel-head p,
+    .menu-sub, .menu-desc, .game-hub-desc { color: var(--muted); }
+
+    header {
+      background: rgba(12,8,14,.72);
+      border-bottom: 1px solid rgba(235,195,175,.18);
+      backdrop-filter: blur(20px) saturate(135%);
+      -webkit-backdrop-filter: blur(20px) saturate(135%);
+    }
+    header h1 { color: var(--cream); font-family: 'Playfair Display', Georgia, serif; }
+    .container { position: relative; }
+    .side-card, .story-add-card, .memory-card, .places-panel,
+    .game-view, .auth-card { border-radius: 24px; }
+    .side-card h2, .story-add-card h2, .memory-side h4,
+    .places-panel-head h3 { color: var(--champ); font-family: 'Playfair Display', Georgia, serif; }
+    .media-box, .story-media-container, .memory-thumb {
+      border: 1px solid rgba(235,195,175,.22);
+      border-radius: 18px;
+      overflow: hidden;
+      background: rgba(12,8,16,.52);
+    }
+    .field-group input[type="text"], .field-group input[type="date"],
+    .field-group textarea, .pass-input, .today-comment-input,
+    .auth-card input {
+      background: rgba(12,8,16,.56);
+      color: var(--cream);
+      border: 1px solid rgba(235,195,175,.22);
+      border-radius: 14px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+      transition: border-color .25s var(--yl-ease), box-shadow .25s var(--yl-ease), background .25s var(--yl-ease);
+    }
+    .field-group input:focus, .field-group textarea:focus,
+    .pass-input:focus, .today-comment-input:focus, .auth-card input:focus {
+      border-color: rgba(245,211,161,.72);
+      box-shadow: 0 0 0 3px rgba(212,140,150,.12), 0 0 22px rgba(245,211,161,.08);
+      outline: none;
+    }
+    .btn, .enter, .auth-card button, .places-tab, .game-back,
+    .menu-close, .notif-mark-all, .delete-btn {
+      transition: transform .25s var(--yl-ease), box-shadow .25s var(--yl-ease), background .25s var(--yl-ease), border-color .25s var(--yl-ease);
+    }
+    .btn.primary, .enter, .auth-card button:not(.secondary) {
+      color: #1b1015;
+      background: linear-gradient(135deg, rgba(212,140,150,.96), rgba(166,94,105,.96));
+      border: 1px solid rgba(245,211,161,.42);
+      box-shadow: 0 10px 24px rgba(125,65,75,.24), inset 0 1px 0 rgba(255,255,255,.25);
+    }
+    .btn:not(.primary), .auth-card button.secondary, .game-back,
+    .menu-close, .notif-mark-all {
+      color: var(--cream);
+      background: rgba(255,255,255,.045);
+      border: 1px solid rgba(235,195,175,.24);
+      backdrop-filter: blur(12px);
+    }
+    .btn:hover, .enter:hover, .auth-card button:hover, .game-back:hover,
+    .menu-close:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(0,0,0,.28); }
+    .world-menu {
+      background: rgba(9,6,12,.82);
+      backdrop-filter: blur(24px) saturate(135%);
+      -webkit-backdrop-filter: blur(24px) saturate(135%);
+    }
+    .menu-inner { border: 1px solid rgba(235,195,175,.18); border-radius: 28px; }
+    .menu-card { border-radius: 20px; transition: transform .3s var(--yl-ease), border-color .3s, background .3s; }
+    .menu-card:hover, .game-hub-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--yl-border-glow);
+      background: linear-gradient(145deg, rgba(49,29,43,.78), rgba(20,12,22,.82));
+    }
+    .menu-name, .game-hub-name { color: var(--cream); font-family: 'Playfair Display', Georgia, serif; }
+    .story-date-badge, .sync-badge, .notif-badge {
+      border-color: rgba(245,211,161,.36);
+      box-shadow: 0 0 14px rgba(212,140,150,.16);
+    }
+    .story-dot { box-shadow: 0 0 0 5px rgba(212,140,150,.12), 0 0 18px rgba(212,140,150,.35); }
+    .xo-cell { background: rgba(255,255,255,.045); border: 1px solid rgba(235,195,175,.18); border-radius: 14px; }
+    .xo-cell:hover { background: rgba(212,140,150,.10); border-color: rgba(245,211,161,.42); }
+    .places-tabs { gap: 8px; }
+    .places-tab { border-radius: 999px; border: 1px solid rgba(235,195,175,.2); background: rgba(255,255,255,.035); color: var(--muted); }
+    .places-tab.active, .places-tab:hover { background: rgba(212,140,150,.16); color: var(--cream); border-color: rgba(245,211,161,.42); }
+    #authSignOut { background: rgba(24,15,26,.78); border-color: rgba(235,195,175,.24); backdrop-filter: blur(12px); }
+    ::selection { background: rgba(212,140,150,.38); color: #fffaf6; }
+
+    @media (max-width: 850px) {
+      header { background: rgba(12,8,14,.82); }
+      .menu-inner { border-radius: 22px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+
+    </style>
 </head>
 
 <body>
