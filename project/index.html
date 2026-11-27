@@ -8,6 +8,10 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
+    <link rel="dns-prefetch" href="//www.googleapis.com">
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="apple-touch-icon" sizes="192x192" href="./icons/yl-icon-192.png">
     <link rel="icon" type="image/svg+xml" href="./icons/yl-icon.svg">
@@ -2177,6 +2181,7 @@
         status("Connecting securely…");
         try {
           await authReady;
+          status("Signing in to your account…");
           await action();
         } catch (e) {
           console.error("[auth]", e);
