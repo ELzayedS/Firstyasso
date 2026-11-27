@@ -8,12 +8,6 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
-    <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js" crossorigin>
-    <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js" crossorigin>
-    <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
-    <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
-    <link rel="dns-prefetch" href="//www.googleapis.com">
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="apple-touch-icon" sizes="192x192" href="./icons/yl-icon-192.png">
     <link rel="icon" type="image/svg+xml" href="./icons/yl-icon.svg">
@@ -2135,8 +2129,6 @@
         "laraesam2007@gmail.com":"Lara"
       });
       let auth = null, firebaseAuth = null, authReady = null, busy = false;
-      let resolveAppAccess;
-      window.ylAppAccessReady = new Promise(resolve => { resolveAppAccess = resolve; });
       const permitted = user => !!(user && user.emailVerified && allowed[(user.email || "").trim().toLowerCase()]);
       function setBusy(value) {
         busy = value;
@@ -2144,7 +2136,6 @@
       }
       function unlock(user) {
         gate.hidden = true;
-        resolveAppAccess();
         document.getElementById("authSignOut").style.display = "block";
         if (window.watchNotifications) window.watchNotifications();
       }
@@ -2183,7 +2174,6 @@
         status("Connecting securely…");
         try {
           await authReady;
-          status("Signing in to your account…");
           await action();
         } catch (e) {
           console.error("[auth]", e);
@@ -2199,8 +2189,8 @@
         run(async () => {
           const [email, password] = credentials();
           const result = await firebaseAuth.signInWithEmailAndPassword(auth, email, password);
-          // signInWithEmailAndPassword already returns the current user profile.
-          // Avoid an extra network round-trip before opening the app.
+          try { await firebaseAuth.reload(result.user); }
+          catch (refreshError) { console.warn("[auth] Could not refresh profile after sign-in:", refreshError); }
           if (permitted(result.user)) unlock(result.user);
           else showPending(result.user);
         });
@@ -2252,8 +2242,8 @@
           const app = appSdk.getApps().length ? appSdk.getApp() : appSdk.initializeApp(config);
           auth = authSdk.getAuth(app);
           firebaseAuth = authSdk;
-          // Firebase uses browser-local persistence by default. Do not block the
-          // initial session check on a persistence migration/network operation.
+          try { await authSdk.setPersistence(auth, authSdk.browserLocalPersistence); }
+          catch (e) { console.warn("[auth] Local persistence unavailable:", e); }
           authSdk.onAuthStateChanged(auth, async user => {
             if (permitted(user)) { unlock(user); return; }
             gate.hidden = false;
@@ -2282,16 +2272,9 @@
 
     <!-- Firebase & ImgBB Upload Logic (With Image Compression for Speed) -->
     <script type="module">
-        window.ylMainReady = new Promise(resolve => { window.ylMainReadyResolve = resolve; });
-        await window.ylAppAccessReady;
-        const [appSdk, firestoreSdk, storageSdk] = await Promise.all([
-            import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"),
-            import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"),
-            import("https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js")
-        ]);
-        const { initializeApp, getApps, getApp } = appSdk;
-        const { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, setDoc, updateDoc, getDoc, query, where, arrayUnion } = firestoreSdk;
-        const { getStorage, ref: storageRef, uploadBytesResumable, getDownloadURL } = storageSdk;
+        import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, setDoc, updateDoc, getDoc, query, where, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyD9IttO0llpQ2TYjDAppTlAPLmQq7btwgQ",
@@ -3434,7 +3417,6 @@
         });
 
         window.watchNotifications();
-        window.ylMainReadyResolve();
     </script>
 
     <script>
@@ -3490,8 +3472,7 @@
 
     <!-- GAMES LOGIC -->
     <script type="module">
-        await window.ylMainReady;
-        const { doc, setDoc, updateDoc, getDoc, onSnapshot, runTransaction } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+        import { doc, setDoc, updateDoc, getDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         const db = window.db;
 
         let myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
@@ -3974,13 +3955,8 @@
 
 
     <script type="module">
-      await window.ylMainReady;
-      const [authSdk, firestoreSdk] = await Promise.all([
-        import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js"),
-        import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js")
-      ]);
-      const { getAuth, onAuthStateChanged } = authSdk;
-      const { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, serverTimestamp } = firestoreSdk;
+      import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
       const appAuth=getAuth(), db=getFirestore();
       const panel=document.getElementById('yl-feature-panel');
       const role=()=>window.ylAuthenticatedRole ? window.ylAuthenticatedRole() : null;
