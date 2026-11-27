@@ -2189,8 +2189,8 @@
         run(async () => {
           const [email, password] = credentials();
           const result = await firebaseAuth.signInWithEmailAndPassword(auth, email, password);
-          try { await firebaseAuth.reload(result.user); }
-          catch (refreshError) { console.warn("[auth] Could not refresh profile after sign-in:", refreshError); }
+          // signInWithEmailAndPassword already returns the current user profile.
+          // Avoid an extra network round-trip before opening the app.
           if (permitted(result.user)) unlock(result.user);
           else showPending(result.user);
         });
@@ -2242,8 +2242,8 @@
           const app = appSdk.getApps().length ? appSdk.getApp() : appSdk.initializeApp(config);
           auth = authSdk.getAuth(app);
           firebaseAuth = authSdk;
-          try { await authSdk.setPersistence(auth, authSdk.browserLocalPersistence); }
-          catch (e) { console.warn("[auth] Local persistence unavailable:", e); }
+          // Firebase uses browser-local persistence by default. Do not block the
+          // initial session check on a persistence migration/network operation.
           authSdk.onAuthStateChanged(auth, async user => {
             if (permitted(user)) { unlock(user); return; }
             gate.hidden = false;
