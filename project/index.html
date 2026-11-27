@@ -2128,6 +2128,44 @@
         "yzaid6800@gmail.com":"Yassin",
         "laraesam2007@gmail.com":"Lara"
       });
+      // Login timing diagnostics; hidden unless the login title is tapped five times.
+      const ylT = [];
+      window.ylMark = name => {
+        ylT.push([name, Math.round(performance.now())]);
+        try { performance.mark("yl:" + name); } catch (e) {}
+        if (window.ylPerfRender) window.ylPerfRender();
+      };
+      window.ylPerfRender = () => {
+        const el = document.getElementById("ylPerfPanel");
+        if (el) el.textContent = ylT.map(([n, t], i) => n + ": " + t + " ms" + (i ? "  (+" + (t - ylT[i - 1][1]) + ")" : "")).join("\\n");
+      };
+      (function () {
+        const title = document.querySelector("#authGate h2");
+        if (!title) return;
+        let taps = 0, timer;
+        const toggle = () => {
+          let el = document.getElementById("ylPerfPanel");
+          if (el) { el.remove(); return; }
+          el = document.createElement("pre");
+          el.id = "ylPerfPanel";
+          el.style.cssText = "position:fixed;left:8px;right:8px;bottom:8px;max-height:45vh;overflow:auto;margin:0;padding:10px;z-index:99999;background:rgba(0,0,0,.88);color:#e4c9a0;font:11px/1.4 ui-monospace,Menlo,monospace;border:1px solid rgba(228,201,160,.4);border-radius:10px;white-space:pre-wrap";
+          document.body.appendChild(el);
+          window.ylPerfRender();
+        };
+        title.addEventListener("click", () => { taps++; clearTimeout(timer); timer = setTimeout(() => { taps = 0; }, 1500); if (taps >= 5) { taps = 0; toggle(); } });
+        if (/[?&]perf=1/.test(location.search)) toggle();
+      })();
+      ylMark("module1-start");
+      // Email/password auth does not need Firebase's popup/redirect resolver.
+      // Initialize only local persistence; this is the same persistence used previously.
+      // A second module may encounter an already-initialized app, in which case reuse it.
+      window.ylInitAuth = (app, sdk) => {
+        try { return sdk.initializeAuth(app, { persistence: [sdk.browserLocalPersistence] }); }
+        catch (e) {
+          if (e && e.code === "auth/already-initialized") return sdk.getAuth(app);
+          throw e;
+        }
+      };
       let auth = null, firebaseAuth = null, authReady = null, busy = false;
       const permitted = user => !!(user && user.emailVerified && allowed[(user.email || "").trim().toLowerCase()]);
       function setBusy(value) {
@@ -2174,6 +2212,7 @@
         status("Connecting securely…");
         try {
           await authReady;
+          ylMark("authReady-awaited");
           await action();
         } catch (e) {
           console.error("[auth]", e);
@@ -2186,11 +2225,14 @@
       // These listeners exist immediately, even while the Firebase SDK is loading.
       authForm.addEventListener("submit", e => {
         e.preventDefault();
+        ylMark("submit-tap");
         run(async () => {
           const [email, password] = credentials();
           const result = await firebaseAuth.signInWithEmailAndPassword(auth, email, password);
+          ylMark("signin-resolved");
           try { await firebaseAuth.reload(result.user); }
           catch (refreshError) { console.warn("[auth] Could not refresh profile after sign-in:", refreshError); }
+          ylMark("reload-done");
           if (permitted(result.user)) unlock(result.user);
           else showPending(result.user);
         });
@@ -2231,6 +2273,7 @@
             import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"),
             import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js")
           ]);
+          ylMark("sdk-imported");
           const config = {
             apiKey:"AIzaSyD9IttO0llpQ2TYjDAppTlAPLmQq7btwgQ",
             authDomain:"lara-s-site.firebaseapp.com",
@@ -2240,11 +2283,12 @@
             appId:"1:885789879803:web:039d0bee8db543bc3f2f5e"
           };
           const app = appSdk.getApps().length ? appSdk.getApp() : appSdk.initializeApp(config);
-          auth = authSdk.getAuth(app);
+          auth = window.ylInitAuth(app, authSdk);
           firebaseAuth = authSdk;
-          try { await authSdk.setPersistence(auth, authSdk.browserLocalPersistence); }
-          catch (e) { console.warn("[auth] Local persistence unavailable:", e); }
+          ylMark("auth-created");
+          let firstAuthState = true;
           authSdk.onAuthStateChanged(auth, async user => {
+            if (firstAuthState) { firstAuthState = false; ylMark("first-auth-state"); }
             if (permitted(user)) { unlock(user); return; }
             gate.hidden = false;
             document.getElementById("authSignOut").style.display = "none";
@@ -2259,6 +2303,7 @@
             gate.hidden = false;
             status("Sign-in session check failed: " + errorMessage(e));
           });
+          ylMark("ready");
           status("Ready. Sign in with your invited email.");
         } catch (e) {
           console.error("[auth] Firebase initialization failed:", e);
@@ -2275,6 +2320,8 @@
         import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, setDoc, updateDoc, getDoc, query, where, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+
+        ylMark("module2-evaluated");
 
         const firebaseConfig = {
             apiKey: "AIzaSyD9IttO0llpQ2TYjDAppTlAPLmQq7btwgQ",
@@ -3955,9 +4002,11 @@
 
 
     <script type="module">
-      import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      import { getAuth, onAuthStateChanged, initializeAuth, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      import { getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
       import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-      const appAuth=getAuth(), db=getFirestore();
+      const appAuth=window.ylInitAuth(getApp(),{getAuth,initializeAuth,browserLocalPersistence}), db=getFirestore();
+      ylMark("module4-evaluated");
       const panel=document.getElementById('yl-feature-panel');
       const role=()=>window.ylAuthenticatedRole ? window.ylAuthenticatedRole() : null;
       const partner=()=>role()==='Yassin'?'Lara':'Yassin';
