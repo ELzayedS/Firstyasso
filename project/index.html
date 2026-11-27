@@ -2129,6 +2129,8 @@
         "laraesam2007@gmail.com":"Lara"
       });
       let auth = null, firebaseAuth = null, authReady = null, busy = false;
+      let resolveAppAccess;
+      window.ylAppAccessReady = new Promise(resolve => { resolveAppAccess = resolve; });
       const permitted = user => !!(user && user.emailVerified && allowed[(user.email || "").trim().toLowerCase()]);
       function setBusy(value) {
         busy = value;
@@ -2136,6 +2138,7 @@
       }
       function unlock(user) {
         gate.hidden = true;
+        resolveAppAccess();
         document.getElementById("authSignOut").style.display = "block";
         if (window.watchNotifications) window.watchNotifications();
       }
@@ -2272,9 +2275,16 @@
 
     <!-- Firebase & ImgBB Upload Logic (With Image Compression for Speed) -->
     <script type="module">
-        import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, setDoc, updateDoc, getDoc, query, where, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+        window.ylMainReady = new Promise(resolve => { window.ylMainReadyResolve = resolve; });
+        await window.ylAppAccessReady;
+        const [appSdk, firestoreSdk, storageSdk] = await Promise.all([
+            import("https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"),
+            import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"),
+            import("https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js")
+        ]);
+        const { initializeApp, getApps, getApp } = appSdk;
+        const { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, setDoc, updateDoc, getDoc, query, where, arrayUnion } = firestoreSdk;
+        const { getStorage, ref: storageRef, uploadBytesResumable, getDownloadURL } = storageSdk;
 
         const firebaseConfig = {
             apiKey: "AIzaSyD9IttO0llpQ2TYjDAppTlAPLmQq7btwgQ",
@@ -3417,6 +3427,7 @@
         });
 
         window.watchNotifications();
+        window.ylMainReadyResolve();
     </script>
 
     <script>
@@ -3472,7 +3483,8 @@
 
     <!-- GAMES LOGIC -->
     <script type="module">
-        import { doc, setDoc, updateDoc, getDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        await window.ylMainReady;
+        const { doc, setDoc, updateDoc, getDoc, onSnapshot, runTransaction } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
         const db = window.db;
 
         let myRole = (window.ylAuthenticatedRole && window.ylAuthenticatedRole());
@@ -3955,8 +3967,13 @@
 
 
     <script type="module">
-      import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-      import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+      await window.ylMainReady;
+      const [authSdk, firestoreSdk] = await Promise.all([
+        import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js"),
+        import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js")
+      ]);
+      const { getAuth, onAuthStateChanged } = authSdk;
+      const { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot, query, where, serverTimestamp } = firestoreSdk;
       const appAuth=getAuth(), db=getFirestore();
       const panel=document.getElementById('yl-feature-panel');
       const role=()=>window.ylAuthenticatedRole ? window.ylAuthenticatedRole() : null;
